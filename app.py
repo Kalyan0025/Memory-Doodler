@@ -2,12 +2,12 @@ import os, json, textwrap
 import streamlit as st
 from dotenv import load_dotenv
 
-# ---------- Setup ----------
-load_dotenv()  # loads .env if present
+# --- Setup ---
+load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
 st.title("🌙 Dream / Memory Doodler (Streamlit + Gemini + p5.js)")
 
-# Try to import Gemini
+# --- Gemini setup ---
 USE_GEMINI = True
 try:
     import google.generativeai as genai
@@ -15,24 +15,46 @@ except Exception:
     USE_GEMINI = False
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+PREF_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+
+available_models, chosen_model = [], None
 if USE_GEMINI and GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        for m in genai.list_models():
+            if "generateContent" in getattr(m, "supported_generation_methods", []):
+                available_models.append(m.name)
+        pref = [PREF_MODEL, f"models/{PREF_MODEL}"]
+        fallbacks = [
+            "gemini-1.5-flash-latest", "gemini-1.5-pro-latest",
+            "models/gemini-1.5-flash-latest", "models/gemini-1.5-pro-latest",
+            "gemini-1.5-flash-002", "gemini-1.5-pro-002",
+            "models/gemini-1.5-flash-002", "models/gemini-1.5-pro-002"
+        ]
+        for c in pref + fallbacks:
+            if c in available_models:
+                chosen_model = c; break
+        if not chosen_model and available_models:
+            chosen_model = available_models[0]
+    except Exception as e:
+        st.warning(f"Model listing failed; fallback. ({e})")
+        chosen_model = PREF_MODEL
+else:
+    chosen_model = None
 
-# ---------- UI ----------
+# --- UI ---
 prompt = st.text_area(
     "Describe your memory/dream/incident",
     value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
     height=120,
-    help="One or two sentences is enough."
 )
-
 colA, colB = st.columns(2)
 with colA:
     do_generate = st.button("Generate")
 with colB:
-    st.caption("Press the button to (re)generate the visual.")
+    st.caption("Edit your text and click Generate to redraw.")
 
-# Default schema (used on first load or as fallback)
+# --- Default schema ---
 default_schema = {
     "emotion": "warm nostalgia",
     "intensity": 0.8,
@@ -42,39 +64,33 @@ default_schema = {
 }
 schema = default_schema.copy()
 
-# ---------- LLM call -> JSON schema ----------
-if do_generate and USE_GEMINI and GEMINI_API_KEY:
+# --- Gemini call ---
+if do_generate and GEMINI_API_KEY and chosen_model:
     sys_prompt = (open("identity.txt").read().strip()
-                  if os.path.exists("identity.txt") else
-                  "Return only valid JSON with keys: emotion, intensity, palette, nodes, caption.")
+                  if os.path.exists("identity.txt")
+                  else "Return only valid JSON with keys: emotion, intensity, palette, nodes, caption.")
     user_prompt = f"User memory:\n{prompt}\n\nReturn only the JSON. No prose."
 
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel(chosen_model)
         resp = model.generate_content([sys_prompt, user_prompt])
-        text = resp.text.strip()
+        text = (resp.text or "").strip()
         if text.startswith("```"):
-            # Strip any code fences
             text = text.strip("`")
             i, j = text.find("{"), text.rfind("}")
             text = text[i:j+1]
         parsed = json.loads(text)
-
-        # Minimal validation / coercion
         schema = {
             "emotion": str(parsed.get("emotion", default_schema["emotion"]))[:40],
-            "intensity": float(parsed.get("intensity", default_schema["intensity"])),
+            "intensity": max(0.0, min(1.0, float(parsed.get("intensity", default_schema["intensity"])))),
             "palette": (parsed.get("palette", default_schema["palette"]) or default_schema["palette"])[:3],
-            "nodes": int(parsed.get("nodes", default_schema["nodes"])),
+            "nodes": max(3, min(20, int(parsed.get("nodes", default_schema["nodes"])))),
             "caption": str(parsed.get("caption", default_schema["caption"]))[:64],
         }
-        # Clamp sensible ranges
-        schema["intensity"] = max(0.0, min(1.0, schema["intensity"]))
-        schema["nodes"] = max(3, min(20, schema["nodes"]))
     except Exception as e:
         st.warning(f"Gemini parse error; using fallback. ({e})")
 
-# ---------- Embed p5.js ----------
+# --- p5.js embed ---
 from streamlit.components.v1 import html as st_html
 
 p5_html = f"""
@@ -170,7 +186,7 @@ p5_html = f"""
         p.fill(255,190,70,200); p.noStroke();
         p.circle(centerPos.x, centerPos.y, Math.min(p.width,p.height)*0.11);
 
-        // Nodes (with breathing)
+        // Nodes
         const baseBreathe = 0.02 + (SCHEMA.intensity ? SCHEMA.intensity*0.02 : 0.016);
         for (let i=0;i<nodes.length;i++) {{
           const a = nodes[i].a;
@@ -209,7 +225,6 @@ p5_html = f"""
         p.fill(p.red(lav), p.green(lav), p.blue(lav), a*0.3);
         p.circle(p.width*0.85, p.height*0.15, r);
       }}
-      // Paper noise
       p.loadPixels();
       for (let i=0; i<p.pixels.length; i+=4) {{
         const n = (Math.random()*16)-8;
@@ -234,7 +249,7 @@ p5_html = f"""
 """
 st.components.v1.html(p5_html, height=980, scrolling=False)
 
-st.divider()
-st.subheader("Schema used")
-st.json(schema)
-st.caption("This app converts your text to a visual schema (via Gemini if available) and renders it live with p5.js in the browser.")
+with st.expander("Gemini debug"):
+    st.write("Chosen model:", chosen_model)
+    if available_models:
+        st.json(available_models)
