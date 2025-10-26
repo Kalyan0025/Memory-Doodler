@@ -1,165 +1,101 @@
-import os, json, re, hashlib
+import re, json, hashlib
 import streamlit as st
-from dotenv import load_dotenv
 from streamlit.components.v1 import html as components_html
 
-# ──────────────────────────────
-# Setup
-# ──────────────────────────────
-load_dotenv()
-st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
-st.title("🌙 Dream / Memory Doodler — Data Humanism Edition")
+st.set_page_config(page_title="Dream/Memory Doodler — Reunion Map", page_icon="🎂", layout="centered")
+st.title("🎂 Memory Doodler — Reunion Map (Data-Humanism)")
 
-# ──────────────────────────────
-# Gemini setup (safe + fallback)
-# ──────────────────────────────
-USE_GEMINI = True
-try:
-    import google.generativeai as genai
-except Exception:
-    USE_GEMINI = False
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-PREF_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
-
-available_models, chosen_model = [], None
-if USE_GEMINI and GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    try:
-        for m in genai.list_models():
-            if "generateContent" in getattr(m, "supported_generation_methods", []):
-                if "flash" in m.name and "exp" not in m.name:
-                    available_models.append(m.name)
-        for c in (PREF_MODEL, f"models/{PREF_MODEL}"):
-            if c in available_models:
-                chosen_model = c
-                break
-        if not chosen_model and available_models:
-            chosen_model = available_models[0]
-    except Exception as e:
-        st.warning(f"Model listing failed; fallback. ({e})")
-        chosen_model = None
-else:
-    chosen_model = None
-
-# ──────────────────────────────
-# Local fallback schema generator
-# ──────────────────────────────
-def local_schema_from_text(text: str, default_schema: dict) -> dict:
-    t = text.lower()
-    EMO = {
-        "joy": ["happy", "fun", "birthday", "party", "smile", "laugh", "celebrat"],
-        "nostalgia": ["childhood", "old", "school", "remember", "reunion", "yesterday", "past"],
-        "calm": ["calm", "peace", "quiet", "relax", "serene"],
-        "love": ["love", "together", "family", "friends", "hug", "bond"],
-        "sad": ["sad", "alone", "miss", "cry", "loss", "goodbye"],
-        "anxiety": ["stress", "worried", "fear", "nervous", "anxious"],
-    }
-    counts = {e: sum(t.count(k) for k in kws) for e, kws in EMO.items()}
-    emotion = max(counts, key=counts.get) if any(counts.values()) else "nostalgia"
-
-    exclaim = t.count("!")
-    caps = sum(1 for w in re.findall(r"[A-Z]{2,}", text) if len(w) > 2)
-    intensity = min(1.0, 0.4 + 0.1 * exclaim + 0.05 * caps)
-
-    PALETTES = {
-        "joy": ["#FFD482", "#F79892", "#F5B3FF"],        # warm gold/coral/lilac
-        "nostalgia": ["#F7C6B3", "#EBD8C3", "#C0A5D7"],  # peach/parchment/lavender
-        "calm": ["#B9E3FF", "#DDEBF2", "#BFD6C7"],       # sky/mist/sage
-        "love": ["#FFB3C1", "#FFDDE1", "#FFF0F3"],       # soft rose tones
-        "sad": ["#9DB4C0", "#6C7A89", "#C7D3DD"],        # cool greys/blues
-        "anxiety": ["#A3B1C6", "#D6D6D6", "#8A9DB0"],    # muted tense blues
-    }
-    palette = PALETTES.get(emotion, default_schema["palette"])
-
-    # people scale → nodes
-    nodes = 6 if "friend" in t or "friends" in t else 4
-    for w in ["friends", "family", "group", "team", "all", "crowd", "class"]:
-        if w in t:
-            nodes += 2
-    # rough count hints
-    for m in re.findall(r"\b(\d{1,2})\b", t):
-        try:
-            nodes = max(nodes, int(m))
-        except:
-            pass
-    nodes = max(3, min(20, nodes))
-
-    caption = "A day to remember"
-    if "birthday" in t and "friend" in t:
-        caption = "Old friends, new laughter"
-    elif "birthday" in t:
-        caption = "A day that glowed"
-    elif "reunion" in t or "childhood" in t:
-        caption = "Back to where we began"
-
-    return {
-        "emotion": emotion,
-        "intensity": round(float(intensity), 2),
-        "palette": palette,
-        "nodes": int(nodes),
-        "caption": caption,
-    }
-
-# ──────────────────────────────
-# UI
-# ──────────────────────────────
-prompt = st.text_area(
-    "Describe your memory or dream",
-    "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
+# -------------------------------
+# 1) INPUTS
+# -------------------------------
+txt = st.text_area(
+    "Tell me about the memory",
+    "Yesterday was my birthday. I met a lot of childhood friends and it felt like a reunion—so much laughter, cake, and photos.",
     height=120,
 )
-do_generate = st.button("Generate")
 
-default_schema = {
-    "emotion": "nostalgia",
-    "intensity": 0.8,
-    "palette": ["#F79892", "#FFD482", "#C0A5D7"],
-    "nodes": 10,
-    "caption": "October 25 — Old friends, new laughter",
+with st.expander("Optional details (tune the visual)"):
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        attendees_override = st.number_input("Attendees (approx.)", min_value=3, max_value=48, value=0, step=1, help="0 = auto-detect")
+        energy = st.slider("Energy / vibe", 0.0, 1.0, 0.75, help="Controls motion/size accents")
+    with col2:
+        years_known = st.number_input("Years known (avg.)", min_value=1, max_value=40, value=0, step=1, help="0 = auto-detect")
+        years_since_last = st.number_input("Years since last meet", min_value=0, max_value=20, value=0, step=1, help="0 = auto-detect")
+    with col3:
+        show_legend = st.checkbox("Show legend", value=True)
+        show_names = st.checkbox("Use detected labels (if any)", value=True)
+
+go = st.button("Generate")
+
+# -------------------------------
+# 2) VERY SMALL NLP (offline)
+# -------------------------------
+t = txt.lower()
+
+def find_int_after(word):
+    m = re.search(rf"{word}\s+(\d{{1,2}})", t)
+    return int(m.group(1)) if m else None
+
+# attendees
+nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", t)]
+attendees = attendees_override or (max(6, min(28, nums[-1])) if nums else (12 if "friends" in t or "reunion" in t or "party" in t else 8))
+
+# years known & last met
+yk = years_known or (20 if ("childhood" in t or "school" in t) else (10 if "college" in t else 6))
+ylm = years_since_last or (2 if ("reunion" in t or "after years" in t or "long time" in t) else 0)
+
+# detect groups & moments
+groups = []
+if any(x in t for x in ["school","childhood","class"]): groups.append("School")
+if "college" in t or "university" in t: groups.append("College")
+if "neighbour" in t or "neighbor" in t or "hood" in t: groups.append("Neighborhood")
+if not groups: groups = ["Friends"]
+
+moments_vocab = {
+    "cake": ["cake","cut","candles"],
+    "toast": ["toast","cheers","raise"],
+    "photos": ["photo","selfie","picture","camera"],
+    "dance": ["dance","dancing","groove"],
+    "gift": ["gift","present"],
+    "laughter": ["laugh","laughter","funny","joke"],
 }
-schema = default_schema.copy()
+moments = [k for k, kws in moments_vocab.items() if any(w in t for w in kws)]
+if not moments: moments = ["laughter"]
 
-# ──────────────────────────────
-# Gemini call + fallback
-# ──────────────────────────────
-def run_llm(text: str):
-    if not (GEMINI_API_KEY and chosen_model):
-        return None
-    try:
-        model = genai.GenerativeModel(chosen_model)
-        system_hint = (
-            "Return ONLY JSON with keys: emotion (string), intensity (0..1), "
-            "palette (array of 3 hex strings), nodes (int 3..20), caption (<=64 chars)."
-        )
-        resp = model.generate_content([system_hint, f"Memory:\n{text}"])
-        raw = (resp.text or "").strip()
-        if raw.startswith("```"):
-            raw = raw.strip("`")
-            i, j = raw.find("{"), raw.rfind("}")
-            raw = raw[i:j+1]
-        data = json.loads(raw)
-        out = {
-            "emotion": str(data.get("emotion", schema["emotion"]))[:40],
-            "intensity": max(0.0, min(1.0, float(data.get("intensity", schema["intensity"])))),
-            "palette": (data.get("palette", schema["palette"]) or schema["palette"])[:3],
-            "nodes": max(3, min(20, int(data.get("nodes", schema["nodes"])))),
-            "caption": str(data.get("caption", schema["caption"]))[:64],
-        }
-        return out
-    except Exception:
-        st.info("💡 Using local generator (Gemini quota reached or offline).")
-        return None
+# detect a few labels (very light)
+labels = []
+if show_names:
+    # crude: capitalized words that look like names (from original text)
+    for w in re.findall(r"\b[A-Z][a-z]{2,}\b", txt):
+        if w.lower() not in {"yesterday","I"}:
+            labels.append(w)
+labels = list(dict.fromkeys(labels))[:attendees-1]  # dedupe
 
-if do_generate:
-    llm_schema = run_llm(prompt)
-    schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
+# palette based on vibe
+palette = {
+    "joy": ["#FFD482", "#F79892", "#F5B3FF"],
+    "nostalgia": ["#F7C6B3", "#EBD8C3", "#C0A5D7"],
+}
+pal = palette["joy"] if ("birthday" in t or "party" in t or "friends" in t) else palette["nostalgia"]
 
-# ──────────────────────────────
-# p5.js visualization — multiple motifs (no 'key' needed)
-# ──────────────────────────────
+schema = {
+    "attendees": attendees,
+    "years_known": yk,
+    "years_since": ylm,
+    "groups": groups,
+    "moments": moments,
+    "energy": float(energy),
+    "labels": labels,
+    "palette": pal,
+    "caption": "Birthday with childhood friends — Reunion Map",
+}
+
+# -------------------------------
+# 3) HTML + p5.js (semantic visual)
+# -------------------------------
 schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
-schema_js = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
+SCHEMA_JS = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
 
 p5_html = f"""
 <!DOCTYPE html>
@@ -168,275 +104,213 @@ p5_html = f"""
 <meta charset='utf-8'>
 <meta name='x-schema-hash' content='{schema_hash}'>
 <style>
-html,body {{margin:0;padding:0;background:#faf7f5;}}
-#wrap {{position:relative;width:900px;margin:0 auto;}}
-#btnsave {{
-  position:absolute;top:12px;right:12px;z-index:10;
-  padding:8px 12px;border:1px solid #d9cbb9;border-radius:8px;background:#fff;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;
-}}
-#caption {{
-  position:absolute;bottom:10px;right:16px;color:rgba(70,60,65,0.85);font-size:18px;
-  font-family:Georgia,serif;pointer-events:none;text-shadow:0 1px 0 rgba(255,255,255,0.4);
-}}
-canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
-.badge {{
-  position:absolute;top:12px;left:12px;background:#fff;border:1px solid #e6d9c8;border-radius:8px;
-  padding:6px 10px;font:12px/1.1 system-ui;color:#665a50;opacity:.85;
-}}
+  html,body {{ margin:0; padding:0; background:#faf7f5; }}
+  #wrap {{ position:relative; width:900px; margin:0 auto; }}
+  canvas {{ border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.06); }}
+  #caption {{ position:absolute; bottom:10px; right:16px; color:#5b4f46; font:17px Georgia,serif; opacity:.9; }}
+  #legend {{
+    position:absolute; left:14px; top:12px; background:#ffffffcc; border:1px solid #e8dccb; border-radius:10px;
+    padding:10px 12px; font:12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#574b42;
+  }}
+  .row {{ display:flex; gap:8px; align-items:center; }}
+  .sw {{ width:10px; height:10px; border-radius:50%; display:inline-block; }}
+  #btnsave {{
+    position:absolute; top:12px; right:12px; z-index:5; padding:6px 10px; border:1px solid #e6d9c8; border-radius:8px; background:#fff; cursor:pointer;
+    font:12px system-ui;
+  }}
 </style>
 </head>
 <body>
-<div id='wrap' data-schema-hash='{schema_hash}'>
-  <div class='badge' id='modeBadge'></div>
-  <button id='btnsave' onclick='savePNG()'>Download PNG</button>
-  <div id='p5mount'></div>
-  <div id='caption'></div>
+<div id="wrap">
+  <button id="btnsave" onclick="savePNG()">Download PNG</button>
+  <div id="p5mount"></div>
+  <div id="caption"></div>
+  <div id="legend" style="display:none"></div>
 </div>
 
-<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js'></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
 <script>
-const SCHEMA = {schema_js};
-
-// deterministic seed
-function hashString(s){{ let h=2166136261>>>0; for(let i=0;i<s.length;i++){{ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }} return h>>>0; }}
-const SEED = hashString((SCHEMA.caption||'')+'|'+(SCHEMA.emotion||'')+'|'+(SCHEMA.nodes||'')+'|'+JSON.stringify(SCHEMA.palette||[]));
-
-// choose motif from emotion + seed
-function chooseMode(emotion, seed){{
-  const e = (emotion||'').toLowerCase();
-  if (e.includes('joy') || e.includes('love')) return (seed%2===0) ? 'PETAL_ROSACE' : 'SPIRAL_RIBBON';
-  if (e.includes('calm')) return (seed%3===0) ? 'FLOW_FIELD' : 'SPIRAL_RIBBON';
-  if (e.includes('anxiety')) return (seed%2===0) ? 'MOSAIC_GRID' : 'CONSTELLATION_WEB';
-  if (e.includes('sad')) return (seed%2===0) ? 'ARC_TIMELINE' : 'MOSAIC_GRID';
-  if (e.includes('nostalgia')) return (seed%3===0) ? 'SPIRAL_RIBBON' : 'ARC_TIMELINE';
-  // default: vary by seed
-  const modes = ['CONSTELLATION_WEB','SPIRAL_RIBBON','FLOW_FIELD','MOSAIC_GRID','PETAL_ROSACE','ARC_TIMELINE'];
-  return modes[seed % modes.length];
-}}
-const MODE = chooseMode(SCHEMA.emotion, SEED);
-
-document.getElementById('modeBadge').textContent = MODE.replaceAll('_',' ').toLowerCase();
-document.getElementById('caption').textContent = SCHEMA.caption || '';
-
-function col(p, hex){{ return p.color(hex||'#888'); }}
-
-new p5((p)=>{{
-  p.setup = function(){{
-    p.randomSeed(SEED); p.noiseSeed(SEED);
-    const c = p.createCanvas(900,900);
-    c.parent(document.getElementById('p5mount'));
-  }};
-
-  p.draw = function(){{
-    p.background(250,247,245);
-    switch(MODE){{
-      case 'CONSTELLATION_WEB': drawConstellation(p); break;
-      case 'SPIRAL_RIBBON':     drawSpiralRibbon(p);  break;
-      case 'FLOW_FIELD':        drawFlowField(p);     break;
-      case 'MOSAIC_GRID':       drawMosaicGrid(p);    break;
-      case 'PETAL_ROSACE':      drawPetalRosace(p);   break;
-      case 'ARC_TIMELINE':      drawArcTimeline(p);   break;
-    }}
-  }};
-}});
-
-// ───────────────── MOTIFS ─────────────────
-
-// 1) Constellation Web (friends, connections)
-function drawConstellation(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  const N = Math.max(3, Math.min(20, SCHEMA.nodes||8));
-  const R = Math.min(p.width,p.height)*0.32;
-  const cx=p.width/2, cy=p.height/2;
-
-  // soft background gradient
-  for (let y=0;y<p.height;y++){{ const f=y/(p.height-1); const cc=p.lerpColor(A,B,f); p.stroke(cc); p.line(0,y,p.width,y); }}
-  // lavender tint
-  p.noStroke(); for (let r=0;r<600;r++){{ const a=p.map(r,0,600,110,0); p.fill(C.levels[0],C.levels[1],C.levels[2],a*0.3); p.circle(p.width*0.85,p.height*0.15,r); }}
-
-  p.noFill(); p.stroke(230,180,90,90); p.strokeWeight(1.4);
-  const pts=[];
-  for (let i=0;i<N;i++){{ 
-    const a=p.TWO_PI*i/N - p.HALF_PI; 
-    const r=R*(0.85 + 0.2*p.noise(SEED*0.001+i*0.2+p.frameCount*0.002)); 
-    pts.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]);
-  }}
-  // links
-  for (let i=0;i<N;i++){{ 
-    const a=pts[i], b=pts[(i+1)%N];
-    p.line(cx,cy,a[0],a[1]);
-    p.bezier(a[0],a[1], p.lerp(a[0],cx,0.25),p.lerp(a[1],cy,0.25),
-             p.lerp(b[0],cx,0.25),p.lerp(b[1],cy,0.25), b[0],b[1]);
-  }}
-  // nodes
-  for (let i=0;i<N;i++){{ 
-    const q=pts[i]; 
-    const breathe = 3*Math.sin(p.frameCount*(0.015+SCHEMA.intensity*0.02) + i);
-    p.noFill(); p.stroke(130,90,60,70); p.circle(q[0]+2,q[1]+2,46);
-    p.fill(255,205,120,170); p.stroke(140,90,60,120); p.circle(q[0]+breathe*0.6,q[1]+breathe*0.6,38);
-  }}
-  // center glow
-  drawGlow(p, cx,cy, Math.min(p.width,p.height)*0.14, p.color(255,195,80,130));
-}}
-
-// 2) Spiral Ribbon (recollection)
-function drawSpiralRibbon(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  const cx=p.width/2, cy=p.height/2;
-  // paper-like background
-  for (let y=0;y<p.height;y++){{ const f=y/(p.height-1); const cc=p.lerpColor(A,B,f*0.7+0.15); p.stroke(cc); p.line(0,y,p.width,y); }}
-  // spiral bands
-  p.noFill();
-  const turns = 6 + (SEED%4);
-  const maxR = Math.min(p.width,p.height)*0.42;
-  for (let t=0;t<turns;t++){{ 
-    p.beginShape();
-    for (let a=0;a<Math.PI*2*1.6; a+=0.03){{ 
-      const r = (a/(Math.PI*2*1.6)) * maxR + 12*p.noise(t*0.1 + a*0.3 + SEED);
-      const x=cx + r*Math.cos(a + t*0.15), y=cy + r*Math.sin(a + t*0.15);
-      const cc = p.lerpColor(B,C, (t/turns));
-      p.stroke(cc.levels[0],cc.levels[1],cc.levels[2], 90);
-      p.vertex(x,y);
-    }}
-    p.endShape();
-  }}
-  // index marks (like monotype)
-  p.stroke(80,60,50,60);
-  for (let i=0;i<18;i++){{ p.line(80+i*44,120, 80+i*44,140+p.random(-6,6)); }}
-  drawGlow(p,cx,cy, Math.min(p.width,p.height)*0.12, p.color(255,200,90,90));
-}}
-
-// 3) Flow Field / River (calm)
-function drawFlowField(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  // soft laminar gradient
-  for (let y=0;y<p.height;y++){{ const f=y/(p.height-1); const cc=p.lerpColor(A,B,f); p.stroke(cc); p.line(0,y,p.width,y); }}
-  p.noFill();
-  const cols=60, rows=60;
-  const scale = 10 + SCHEMA.intensity*30;
-  for (let j=0;j<rows;j++){{ 
-    let x=40, y=30+j*(p.height-60)/rows;
-    p.beginShape();
-    for (let i=0;i<cols;i++){{ 
-      const a = p.noise((x+SEED)*0.002, (y+SEED)*0.002) * p.TWO_PI*2;
-      const v = p.createVector(Math.cos(a), Math.sin(a));
-      x += v.x*scale; y += v.y*scale*0.6;
-      const cc = p.lerpColor(B,C, i/cols);
-      p.stroke(cc.levels[0],cc.levels[1],cc.levels[2], 70);
-      p.vertex(x,y);
-    }}
-    p.endShape();
-  }}
-}}
-
-// 4) Mosaic Grid (busy scenes / fragments)
-function drawMosaicGrid(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  const margin=60, w=p.width-2*margin, h=p.height-2*margin;
-  const cells = 6 + (SCHEMA.nodes||8); // more nodes ⇒ more cells
-  const cw = w/cells, ch = h/cells;
-  // parchment
-  p.noStroke(); p.fill(245,240,233); p.rect(margin-10,margin-10,w+20,h+20,12);
-  for (let y=0;y<cells;y++){{ 
-    for (let x=0;x<cells;x++){{ 
-      const f = p.noise(SEED*0.001+x*0.22,y*0.22+p.frameCount*0.003);
-      const cc = f<0.33?A:(f<0.66?B:C);
-      p.fill(cc.levels[0],cc.levels[1],cc.levels[2], 140);
-      const pad = 3 + (1+SCHEMA.intensity*8)*p.noise(x*0.4,y*0.4);
-      p.rect(margin+x*cw+pad, margin+y*ch+pad, cw-2*pad, ch-2*pad, 4);
-    }}
-  }}
-}}
-
-// 5) Petal Rosace (joy/love/celebration)
-function drawPetalRosace(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  const cx=p.width/2, cy=p.height/2;
-  const petals = 8 + (SEED%8);
-  const rings = 3 + (SCHEMA.nodes? Math.floor((SCHEMA.nodes-3)/4):2);
-  // linen bg
-  for (let y=0;y<p.height;y++){{ const f=y/(p.height-1); const cc=p.lerpColor(A,B,f*0.6+0.2); p.stroke(cc); p.line(0,y,p.width,y); }}
-  // petals
-  p.noFill();
-  for (let r=1;r<=rings;r++){{ 
-    const R = r * (Math.min(p.width,p.height)*0.12);
-    for (let i=0;i<petals;i++){{ 
-      const a = p.TWO_PI*i/petals + (p.frameCount*0.002);
-      const px = cx + R*Math.cos(a), py = cy + R*Math.sin(a);
-      const qx = cx + (R*0.4)*Math.cos(a+0.6), qy = cy + (R*0.4)*Math.sin(a+0.6);
-      const cc = p.lerpColor(B,C, r/rings);
-      p.stroke(cc.levels[0],cc.levels[1],cc.levels[2], 120);
-      p.strokeWeight(1.6);
-      p.bezier(cx,cy, qx,qy, qx, qy, px,py);
-    }}
-  }}
-  // confetti dots
-  p.noStroke();
-  for (let i=0;i<60;i++){{ 
-    const rr = Math.random()*Math.min(p.width,p.height)*0.45;
-    const aa = Math.random()*p.TWO_PI;
-    const cc = [A,B,C][i%3];
-    p.fill(cc.levels[0],cc.levels[1],cc.levels[2], 150);
-    p.circle(cx+rr*Math.cos(aa), cy+rr*Math.sin(aa), 4+Math.random()*6);
-  }}
-}}
-
-// 6) Arc Timeline (milestones)
-function drawArcTimeline(p){{
-  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
-  const cx=p.width/2, cy=p.height*0.72;
-  const layers = 6 + (SEED%5);
-  // gradient sky
-  for (let y=0;y<p.height;y++){{ const f=y/(p.height-1); const cc=p.lerpColor(A,B,f); p.stroke(cc); p.line(0,y,p.width,y); }}
-  // arcs
-  p.noFill();
-  const base = Math.min(p.width,p.height)*0.2;
-  for (let i=0;i<layers;i++){{ 
-    const r = base + i*22;
-    const cc = p.lerpColor(B,C, i/layers);
-    p.stroke(cc.levels[0],cc.levels[1],cc.levels[2], 120);
-    p.strokeWeight(2);
-    const jitter = (SCHEMA.intensity||0.6)*0.25;
-    const a1 = -Math.PI + i*0.04 - jitter;
-    const a2 = -0.1 + jitter;
-    p.arc(cx,cy,r*2,r*2, a1, a2);
-    // tick (event)
-    p.stroke(90,70,60,120); p.strokeWeight(1.2);
-    p.line(cx-r*Math.cos(1.1), cy-r*Math.sin(1.1), cx-(r+10)*Math.cos(1.1), cy-(r+10)*Math.sin(1.1));
-  }}
-  // anchor
-  p.noStroke(); p.fill(80,60,50,60); p.rect(cx-3, cy-30, 6, 60, 3);
-}}
-
-// ─────────── shared helpers ───────────
-function drawGlow(p,x,y,rad,col){{
-  p.noStroke();
-  for (let r=rad; r>0; r-=6){{ const a=p.map(r,0,rad,220,0); p.fill(p.red(col),p.green(col),p.blue(col), a*0.5); p.circle(x,y,r*2); }}
-}}
+const SCHEMA = {SCHEMA_JS};
+const SHOW_LEGEND = {str(show_legend).lower()};
 
 function savePNG(){{
   const c=document.querySelector('canvas'); if(!c) return;
-  const link=document.createElement('a'); link.download='memory_doodle.png'; link.href=c.toDataURL('image/png'); link.click();
+  const a=document.createElement('a'); a.download='reunion_map.png'; a.href=c.toDataURL('image/png'); a.click();
 }}
+
+function col(p,hex){{ return p.color(hex||"#888"); }}
+function lerpColorRGBA(p,c1,c2,t){{ const cc=p.lerpColor(c1,c2,t); return p.color(p.red(cc),p.green(cc),p.blue(cc), 120); }}
+
+new p5((p)=>{{
+  let W=900,H=900, cx=W/2, cy=H*0.56;
+  const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
+  const rngSeed = parseInt("{schema_hash}".slice(0,8),16) % 100000;
+
+  function bgPaper(){{
+    for(let y=0;y<H;y++){{ const t=y/(H-1); const cc=p.lerpColor(A,B,t*0.9); p.stroke(cc); p.line(0,y,W,y); }}
+    p.noStroke(); for(let r=0;r<600;r++){{ const a=p.map(r,0,600,110,0); p.fill(p.red(C),p.green(C),p.blue(C),a*0.35); p.circle(W*0.85,H*0.18,r); }}
+  }}
+
+  function timelineStrip(){{
+    const y=120, mL=70, mR=W-70;
+    // bar
+    p.stroke(90,70,60,80); p.strokeWeight(2); p.line(mL,y,mR,y);
+    // ticks: years known
+    const nTicks = Math.max(4, Math.min(20, SCHEMA.years_known));
+    for(let i=0;i<=nTicks;i++){{ 
+      const x = p.map(i,0,nTicks,mL,mR);
+      p.stroke(90,70,60,70); p.strokeWeight(1);
+      p.line(x,y-8,x,y+8);
+    }}
+    // last met marker
+    if (SCHEMA.years_since>0){{
+      const frac = Math.min(1, SCHEMA.years_since/SCHEMA.years_known);
+      const xm = p.lerp(mL,mR,1-frac);
+      p.stroke(255,120,60,160); p.strokeWeight(2.5);
+      p.line(xm,y-12,xm,y+12);
+      p.noStroke(); p.fill(255,120,60,160); p.textAlign(p.CENTER,p.TOP);
+      p.textSize(11); p.text("last met", xm, y+16);
+    }}
+    // caption
+    p.noStroke(); p.fill(90,70,60,120); p.textAlign(p.LEFT,p.TOP); p.textSize(12);
+    p.text(`Years known: ~${{SCHEMA.years_known}}`, mL, y-26);
+  }}
+
+  function clusterLayout(){{
+    // decide clusters from groups
+    const G = SCHEMA.groups;
+    const R = Math.min(W,H)*0.28;
+    const centers=[];
+    for (let i=0;i<G.length;i++){{ 
+      const a = -p.HALF_PI + i*(p.TWO_PI/G.length);
+      centers.push([cx + R*Math.cos(a), cy + R*Math.sin(a)]);
+    }}
+    // allocate node counts
+    const N = Math.max(3, Math.min(48, SCHEMA.attendees));
+    const per = Math.max(1, Math.floor(N/G.length));
+    const rem = N - per*G.length;
+    const counts = centers.map((_,i)=> per + (i<rem?1:0));
+    return {{ centers, counts }};
+  }}
+
+  function drawReunion(){{
+    bgPaper();
+    timelineStrip();
+
+    // moments ring
+    const ringR = Math.min(W,H)*0.4;
+    const icons = {{
+      cake:"🍰", toast:"🥂", photos:"📸", dance:"💃", gift:"🎁", laughter:"😄"
+    }};
+    const ms = SCHEMA.moments;
+    p.textAlign(p.CENTER,p.CENTER); p.textSize(20);
+    for (let i=0;i<ms.length;i++){{ 
+      const a = i/ms.length * p.TWO_PI - p.PI/2 + 0.3;
+      const x = cx + ringR*Math.cos(a), y = cy + ringR*Math.sin(a);
+      p.noStroke(); p.fill(80,60,50,150);
+      p.text(icons[ms[i]]||"•", x, y);
+    }}
+
+    // groups & nodes
+    const {{ centers, counts }} = clusterLayout();
+    const energy = SCHEMA.energy || 0.6;
+    const baseR = 48 + energy*22;
+
+    // center "you"
+    drawGlow(p,cx,cy, baseR*0.9, p.color(255,205,120,120));
+    p.noStroke(); p.fill(255,205,120,210); p.circle(cx,cy, baseR*0.8);
+    p.fill(90,70,60,160); p.textAlign(p.CENTER,p.CENTER); p.textSize(13); p.text("You", cx, cy);
+
+    // clusters
+    let labelIdx = 0;
+    for (let g=0; g<centers.length; g++){{ 
+      const [gx,gy] = centers[g];
+      // group label
+      p.noStroke(); p.fill(90,70,60,130); p.textAlign(p.CENTER,p.BOTTOM); p.textSize(12);
+      p.text(SCHEMA.groups[g], gx, gy-56);
+
+      // soft halo
+      drawGlow(p,gx,gy, 52, p.color(255,195,80,70));
+
+      const n = counts[g];
+      const r = 72 + 22 * (g%2); // small radial variation
+      for (let i=0;i<n;i++){{ 
+        const a = i/n * p.TWO_PI - p.HALF_PI + (g*0.3);
+        const jx = gx + r*Math.cos(a);
+        const jy = gy + r*Math.sin(a);
+
+        // connection to center
+        p.stroke(230,180,90, 90); p.strokeWeight(1.4);
+        p.line(cx,cy, jx,jy);
+
+        // some friend-to-friend ties inside cluster
+        if (i%3===0 && n>3){{
+          const k = (i+2)%n;
+          const bx = gx + r*Math.cos(k/n*p.TWO_PI - p.HALF_PI + (g*0.3));
+          const by = gy + r*Math.sin(k/n*p.TWO_PI - p.HALF_PI + (g*0.3));
+          p.stroke(200,160,95, 70); p.bezier(jx,jy, p.lerp(jx,gx,0.3), p.lerp(jy,gy,0.3), p.lerp(bx,gx,0.3), p.lerp(by,gy,0.3), bx,by);
+        }}
+
+        // node (friend)
+        p.noStroke();
+        const cc = lerpColorRGBA(p, col(p,"#FFE2A1"), col(p,"#F5B3FF"), (g%2)*0.5 + (i/n)*0.2);
+        p.fill(cc);
+        const breathe = 2.5*Math.sin(p.frameCount*(0.012+energy*0.02) + i + g*3);
+        p.circle(jx, jy, 24 + breathe);
+
+        // tiny label if available
+        if ({str(show_names).lower()} && {len(schema["labels"])} > 0 && labelIdx < {len(schema["labels"])} ){{
+          p.fill(90,70,60,150); p.textAlign(p.CENTER,p.TOP); p.textSize(10);
+          p.text("{'|'.join(schema['labels'])}".split("|")[labelIdx], jx, jy+14);
+          labelIdx++;
+        }}
+      }}
+    }}
+  }}
+
+  function drawLegend(){{
+    if (!SHOW_LEGEND) return;
+    const el = document.getElementById('legend');
+    el.style.display = 'block';
+    const sw = (hex)=>`<span class="sw" style="background:${{hex}}"></span>`;
+    el.innerHTML = `
+      <div class="row"><strong>Legend</strong></div>
+      <div class="row">${{sw(SCHEMA.palette[0])}} Background tone (emotion)</div>
+      <div class="row">${{sw('#FFC973')}} Center = You</div>
+      <div class="row">${{sw('#E0B66D')}} Threads = connections</div>
+      <div class="row">● Clusters = groups (${SCHEMA.groups.join(', ')})</div>
+      <div class="row">🏷 Names (if detected)</div>
+      <div class="row">★ Timeline (top): years known & “last met”</div>
+      <div class="row">◎ Moments ring: ${SCHEMA.moments.join(', ')}</div>
+      <div class="row"><em>Attendees ≈ ${SCHEMA.attendees}, Energy = ${SCHEMA.energy}</em></div>
+    `;
+  }}
+
+  function drawCaption(){{
+    document.getElementById('caption').textContent = SCHEMA.caption || '';
+  }}
+
+  // helpers
+  function drawGlow(p,x,y,rad,col){{
+    p.noStroke();
+    for (let r=rad; r>0; r-=6){{ const a=p.map(r,0,rad,200,0); p.fill(p.red(col),p.green(col),p.blue(col), a*0.5); p.circle(x,y,r*2); }}
+  }}
+
+  p.setup = function(){{
+    const c = p.createCanvas(W,H); c.parent(document.getElementById('p5mount'));
+    drawLegend();
+  }};
+  p.draw = function(){{
+    drawReunion();
+    drawCaption();
+  }};
+}});
 </script>
 </body>
 </html>
 """
 
-# Render (no 'key' argument in your Streamlit build)
-try:
-    components_html("<div style='padding:6px;font:14px system-ui'>Rendering…</div>", height=40, scrolling=False)
+if go:
     components_html(p5_html, height=980, scrolling=False)
-except Exception as e:
-    st.error("⚠️ Failed to render p5.js canvas. See details below.")
-    st.exception(e)
-    st.write("schema:", schema)
-    st.write("p5_html length:", len(p5_html))
-    st.code(p5_html[:800], language="html")
-
-# Debug
-with st.expander("Gemini debug"):
-    st.write("Chosen model:", chosen_model)
-    if available_models:
-        st.json(available_models)
+else:
+    st.info("Describe the scene and click **Generate**. This version builds a *Reunion Map*: a human, annotated view with groups, connections, a timeline, and highlight moments.")
