@@ -1,14 +1,14 @@
-# virtual envs
+# Python
+__pycache__/
+*.pyc
+
+# Envs
 env/
 venv/
 .venv/
 
-# python
-__pycache__/
-*.pyc
-
-# streamlit
+# Streamlit
 .streamlit/
 
-# secrets
+# Secrets
 .env
