@@ -28,7 +28,6 @@ if USE_GEMINI and GEMINI_API_KEY:
     try:
         for m in genai.list_models():
             if "generateContent" in getattr(m, "supported_generation_methods", []):
-                # prefer flash (lighter / fewer quota issues)
                 if "flash" in m.name and "exp" not in m.name:
                     available_models.append(m.name)
         for c in (PREF_MODEL, f"models/{PREF_MODEL}"):
@@ -128,13 +127,11 @@ def run_llm(text: str):
         )
         resp = model.generate_content([system_hint, f"Memory:\n{text}"])
         raw = (resp.text or "").strip()
-        # Strip code fences if present
         if raw.startswith("```"):
             raw = raw.strip("`")
             i, j = raw.find("{"), raw.rfind("}")
             raw = raw[i:j+1]
         data = json.loads(raw)
-        # Coerce / clamp
         out = {
             "emotion": str(data.get("emotion", schema["emotion"]))[:40],
             "intensity": max(0.0, min(1.0, float(data.get("intensity", schema["intensity"])))),
@@ -152,20 +149,17 @@ if do_generate:
     schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
 
 # ──────────────────────────────
-# p5.js visualization (safe render)
+# p5.js visualization (no 'key'; force remount via schema hash in DOM)
 # ──────────────────────────────
-# A stable key so Streamlit re-mounts the canvas when schema changes
-schema_key = "p5_" + hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
-
-# Serialize schema safely (no weird unicode surprises)
+schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
 schema_js = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
 
-# Build HTML (all braces escaped for f-string)
 p5_html = f"""
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset='utf-8'>
+<meta name='x-schema-hash' content='{schema_hash}'>
 <style>
 html,body {{margin:0;padding:0;background:#faf7f5;}}
 #wrap {{position:relative;width:900px;margin:0 auto;}}
@@ -182,7 +176,7 @@ canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
 </style>
 </head>
 <body>
-<div id='wrap'>
+<div id='wrap' data-schema-hash='{schema_hash}'>
   <button id='btnsave' onclick='savePNG()'>Download PNG</button>
   <div id='p5mount'></div>
   <div id='caption'></div>
@@ -295,25 +289,18 @@ function savePNG(){{
 </html>
 """
 
-# ──────────────────────────────
-# Safe render with diagnostics
-# ──────────────────────────────
+# Render (no 'key' argument)
 try:
-    # quick sanity: make sure minimal HTML works (helps isolate failures)
-    components_html("<div style='padding:6px;font:14px system-ui'>Loading canvas…</div>", height=40, scrolling=False, key=schema_key+"_probe")
-    # main render
-    components_html(p5_html, height=980, scrolling=False, key=schema_key)
+    components_html("<div style='padding:6px;font:14px system-ui'>Loading canvas…</div>", height=40, scrolling=False)
+    components_html(p5_html, height=980, scrolling=False)
 except Exception as e:
     st.error("⚠️ Failed to render p5.js canvas. See details below.")
     st.exception(e)
-    st.write("schema_key:", schema_key)
     st.write("schema:", schema)
     st.write("p5_html length:", len(p5_html))
     st.code(p5_html[:600], language="html")
 
-# ──────────────────────────────
-# Debug info
-# ──────────────────────────────
+# Debug
 with st.expander("Gemini debug"):
     st.write("Chosen model:", chosen_model)
     if available_models:
