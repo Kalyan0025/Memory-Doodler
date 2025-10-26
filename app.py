@@ -2,148 +2,101 @@ import re, json, hashlib
 import streamlit as st
 from streamlit.components.v1 import html as components_html
 
-st.set_page_config(page_title="Memory Doodler — Curated Aesthetics", page_icon="🎨", layout="centered")
-st.title("🎨 Visual Memory Card — Curated Aesthetics (p5.js)")
+st.set_page_config(page_title="Visual Memory — ReCollection-inspired", page_icon="🌀", layout="centered")
+st.title("🌀 Visual Memory (ReCollection-inspired)")
 
-# ─────────────────────────────────────────────────────────────
-# INPUTS
-# ─────────────────────────────────────────────────────────────
-txt = st.text_area(
-    "Tell me about the memory",
-    "Yesterday was my birthday. I met childhood friends, we cut cake, laughed a lot, and took photos.",
-    height=120,
+# ──────────────────────────────────────
+# 1) INPUT: story only
+# ──────────────────────────────────────
+story = st.text_area(
+    "Whisper your memory (a few sentences work best)",
+    "Yesterday was my birthday. I met childhood friends after years; we laughed, took photos, and shared cake.",
+    height=140,
 )
-
-colA, colB = st.columns([1,1])
-with colA:
-    style = st.selectbox(
-        "Aesthetic",
-        [
-            "Risograph Collage",
-            "Isotype Bloom",
-            "Ink Arc Weave",
-        ],
-        help="Pick the look; we’ll keep motion subtle."
-    )
-    show_names = st.checkbox("Use detected names (if found)", value=True)
-    show_legend = st.checkbox("Show micro-legend", value=False)
-with colB:
-    attendees_override = st.number_input("Attendees (approx.)", min_value=0, max_value=60, value=0, step=1, help="0 = auto")
-    energy = st.slider("Energy (subtle motion)", 0.0, 1.0, 0.45)
-    custom_palette = st.text_input("Palette (3 hex, comma-sep, optional)", "")
-
 go = st.button("Generate")
 
-# ─────────────────────────────────────────────────────────────
-# LIGHT NLP / SCHEMA
-# ─────────────────────────────────────────────────────────────
-t = txt.lower()
-nums = [int(n) for n in re.findall(r"\b(\d{1,2})\b", t)]
-attendees = attendees_override or (max(6, min(40, nums[-1])) if nums else (14 if any(k in t for k in ["friends","reunion","party"]) else 8))
-attendees = max(3, min(60, attendees))
+# ──────────────────────────────────────
+# 2) Minimal text processing → schema
+# ──────────────────────────────────────
+t = story.strip()
+seed_text = t if t else "empty"
+seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % 10**9
 
-# groups
-groups = []
-if any(x in t for x in ["school","childhood","class"]): groups.append("School")
-if "college" in t or "university" in t: groups.append("College")
-if any(x in t for x in ["neighbour","neighbor","hood","block"]): groups.append("Neighborhood")
-if not groups: groups = ["Friends"]
-
-# moments
-moments_vocab = {
-    "cake": ["cake","candles","cut"],
-    "toast": ["toast","cheers","raise"],
-    "photos": ["photo","selfie","picture","camera"],
-    "dance": ["dance","dancing","groove"],
-    "gift": ["gift","present"],
-    "laughter": ["laugh","laughter","funny","joke"],
-}
-moments = [k for k, kws in moments_vocab.items() if any(w in t for w in kws)]
-if not moments: moments = ["laughter"]
-
-# names
-labels = []
-if show_names:
-    for w in re.findall(r"\b[A-Z][a-z]{2,}\b", txt):
-        if w.lower() not in {"yesterday","i"}:
-            labels.append(w)
-labels = list(dict.fromkeys(labels))[:attendees-1]
-
-# palette
-if custom_palette.strip():
-    parts = [p.strip() for p in custom_palette.split(",") if p.strip()]
-    if len(parts) >= 3:
-        pal = parts[:3]
-    else:
-        pal = ["#FFD482","#F79892","#C0A5D7"]
+# tiny sentiment-ish palette
+tl = t.lower()
+if any(k in tl for k in ["birthday","friends","laugh","joy","love","celebrat"]):
+    palette = ["#FFD482", "#F79892", "#C0A5D7"]        # warm, celebratory
+elif any(k in tl for k in ["calm","quiet","beach","walk","breeze","serene"]):
+    palette = ["#B9E3FF", "#DDEBF2", "#BFD6C7"]        # cool, calm
 else:
-    if any(k in t for k in ["birthday","party","friends","celebrat"]):
-        pal = ["#FFD482","#F79892","#C0A5D7"]   # warm riso-esque
-    elif any(k in t for k in ["calm","quiet","walk","beach"]):
-        pal = ["#B9E3FF","#DDEBF2","#BFD6C7"]   # cool calm
-    else:
-        pal = ["#F7C6B3","#EBD8C3","#C0A5D7"]   # nostalgic neutral
+    palette = ["#F7C6B3", "#EBD8C3", "#C0A5D7"]        # nostalgic
+
+# pull 6–10 salient words for fragment overlay
+stop = set("""a an the and or of for to from is are was were be being been this that those these i me my we our you your he she they them his her their in on at by with without into out about over under after before again more most such very just not no yes as it's it's""".split())
+tokens = re.findall(r"[A-Za-z]{3,}", t)
+salient = [w for w in tokens if w.lower() not in stop]
+# prefer unique words, keep order, cap to 10
+seen, keywords = set(), []
+for w in salient:
+    wl = w.lower()
+    if wl not in seen:
+        seen.add(wl)
+        keywords.append(w)
+    if len(keywords) >= 10:
+        break
+if not keywords:
+    keywords = ["memory","moment","trace","echo","warmth","smile"]
 
 schema = {
-    "style": style,
-    "attendees": attendees,
-    "groups": groups,
-    "moments": moments,
-    "labels": labels,
-    "energy": float(energy),
-    "palette": pal,
-    "caption": "Visual Memory Card",
-    "subtitle": style,
+    "seed": seed,
+    "palette": palette,
+    "caption": "Visual Memory",
+    "subtitle": "monotype × slitscan × fragments",
+    "fragments": keywords,
+    "story": t,
 }
 
-# ─────────────────────────────────────────────────────────────
-# p5.js TEMPLATE (token replacement so ${...} in JS is safe)
-# ─────────────────────────────────────────────────────────────
-schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
+# ──────────────────────────────────────
+# 3) p5.js page (token replacement; keeps ${...} intact)
+# ──────────────────────────────────────
 SCHEMA_JS = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
+schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
 
 p5_template = r"""
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset='utf-8'>
-<meta name='x-schema-hash' content='__HASH__'>
+<meta charset="utf-8"/>
+<meta name="x-schema-hash" content="__HASH__"/>
 <style>
-  html,body { margin:0; padding:0; background:#f2efe9; }
+  html,body { margin:0; padding:0; background:#0f1115; }
   #card {
-    width: 900px; height: 900px; margin: 0 auto;
+    width: 980px; height: 980px; margin: 24px auto;
     background: #faf7f5;
     border-radius: 28px;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.03);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.20), 0 2px 10px rgba(0,0,0,0.08);
     position: relative; overflow: hidden;
   }
   #chrome {
-    position:absolute; top:0; left:0; right:0; height: 60px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.6));
+    position:absolute; top:0; left:0; right:0; height: 68px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.60));
     border-top-left-radius: 28px; border-top-right-radius: 28px;
-    display:flex; align-items:center; gap:10px; padding:0 16px;
-    color:#5b524a; font: 13px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    display:flex; align-items:center; gap:10px; padding:0 18px;
+    color:#5b524a; font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   }
   .dot { width:10px; height:10px; border-radius:50%; background:#e6d7c6; }
   #title { font-weight:600; letter-spacing:.2px; }
   #subtitle { opacity:.65; margin-left:6px; }
-  #p5mount { position:absolute; top:60px; left:0; right:0; bottom:50px; }
+  #p5mount { position:absolute; top:68px; left:0; right:0; bottom:64px; }
   #footer {
-    position:absolute; left:0; right:0; bottom:0; height:50px;
-    display:flex; align-items:center; justify-content:flex-end;
+    position:absolute; left:0; right:0; bottom:0; height:64px;
+    display:flex; align-items:center; justify-content:space-between;
     padding:0 16px; color:#6a5e55; font: 12px system-ui;
-    background: linear-gradient(0deg, rgba(255,255,255,0.92), rgba(255,255,255,0));
+    background: linear-gradient(0deg, rgba(255,255,255,0.94), rgba(255,255,255,0));
     border-bottom-left-radius: 28px; border-bottom-right-radius: 28px;
   }
-  #legend {
-    position:absolute; left:14px; top:72px; background:#ffffffdd; border:1px solid #e8dccb; border-radius:10px;
-    padding:10px 12px; font:12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:#574b42;
-    display:none;
-  }
-  .row { display:flex; gap:8px; align-items:center; }
-  .sw { width:10px; height:10px; border-radius:50%; display:inline-block; }
   #btnsave {
-    position:absolute; top:14px; right:16px; z-index:5; padding:6px 10px; border:1px solid #e6d9c8; border-radius:8px; background:#fff; cursor:pointer;
+    padding:6px 10px; border:1px solid #e6d9c8; border-radius:8px; background:#fff; cursor:pointer;
     font:12px system-ui; color:#5c5047;
   }
 </style>
@@ -155,233 +108,180 @@ p5_template = r"""
     <div id="title">__CAPTION__</div><div id="subtitle">— __SUBTITLE__</div>
     <button id="btnsave" onclick="savePNG()">Save PNG</button>
   </div>
-  <div id="legend"></div>
   <div id="p5mount"></div>
-  <div id="footer"><span id="meta"></span></div>
+  <div id="footer"><div id="metaLeft"></div><div id="metaRight"></div></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
 <script>
 const SCHEMA = __SCHEMA__;
-const SHOW_LEGEND = __SHOW_LEGEND__;
-const SHOW_NAMES = __SHOW_NAMES__;
 
 function savePNG(){
   const c=document.querySelector('canvas'); if(!c) return;
-  const a=document.createElement('a'); a.download='memory_card.png'; a.href=c.toDataURL('image/png'); a.click();
+  const a=document.createElement('a'); a.download='visual_memory.png'; a.href=c.toDataURL('image/png'); a.click();
 }
-function meta(s){ document.getElementById('meta').textContent = s; }
-function col(p,hex){ return p.color(hex||"#888"); }
-function lerpColorRGBA(p,c1,c2,t){ const cc=p.lerpColor(c1,c2,t); return p.color(p.red(cc),p.green(cc),p.blue(cc), 120); }
 
 document.getElementById('title').textContent = SCHEMA.caption || 'Memory';
 document.getElementById('subtitle').textContent = SCHEMA.subtitle || '';
-meta(`Attendees ≈ ${SCHEMA.attendees} • Energy ${((SCHEMA.energy||0)*100|0)/100}`);
+document.getElementById('metaLeft').textContent  = (SCHEMA.story||'').slice(0,80);
+document.getElementById('metaRight').textContent = 'seed:'+SCHEMA.seed;
+
+function col(p,hex){ return p.color(hex||"#888"); }
 
 new p5((p)=>{
-  let W=900, H=900, cx=W/2, cy=(H-110)/2 + 60;
+  const W=980, H=980;
+  const inner = {x:0, y:68, w:W, h:H-68-64}; // drawable area inside chrome/footer
   const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
+  const seed = SCHEMA.seed||1;
+  p.randomSeed(seed); p.noiseSeed(seed);
 
-  function bgPaper(){
-    // soft editorial gradient + paper grain
-    for(let y=60;y<H-50;y++){
-      const t=(y-60)/(H-110); const cc=p.lerpColor(A,B, t*0.9 + 0.05);
-      p.stroke(cc); p.line(0,y,W,y);
+  function bgEditorial(){
+    // soft gradient wash
+    for(let y=inner.y; y<inner.y+inner.h; y++){
+      const t=(y-inner.y)/(inner.h);
+      const cc=p.lerpColor(A,B, t*0.9 + 0.05);
+      p.stroke(cc); p.line(inner.x, y, inner.x+inner.w, y);
     }
-    p.noFill(); p.push(); p.blendMode(p.MULTIPLY);
-    for (let i=0;i<8000;i++){
-      const x=Math.random()*W, y=60 + Math.random()*(H-110);
-      const g=p.random(15,25);
-      p.stroke(0,0,0, p.random(3,8)); p.point(x,y);
+    // paper grain
+    p.push(); p.noStroke(); p.blendMode(p.MULTIPLY);
+    for(let i=0;i<9000;i++){
+      const x=p.random(inner.x, inner.x+inner.w);
+      const y=p.random(inner.y, inner.y+inner.h);
+      p.fill(0,0,0, p.random(4,9));
+      p.circle(x,y,p.random(0.6,1.2));
     }
     p.pop();
   }
 
-  // ───────────────── Aesthetics
-  function risographCollage(){
-    bgPaper();
+  // Monotype plates (large organic fields, slight tilt/overprint)
+  function monotypePlates(){
     p.push(); p.blendMode(p.MULTIPLY);
-
-    const blobs = 5 + Math.floor((SCHEMA.attendees||8)/4);
-    for (let i=0;i<blobs;i++){
-      const baseR = Math.min(W,H)*p.random(0.10,0.22);
-      const ox = cx + Math.cos(i*2.1)*p.random(90,180);
-      const oy = cy + Math.sin(i*1.7)*p.random(90,180);
+    const plates = 4 + (SCHEMA.fragments?.length||6)%3;
+    for(let i=0;i<plates;i++){
+      const cx = inner.x + inner.w* (0.25 + 0.5*p.random());
+      const cy = inner.y + inner.h* (0.25 + 0.5*p.random());
+      const baseR = Math.min(inner.w,inner.h) * p.random(0.12,0.26);
       const colr = [A,B,C][i%3];
+      const rot = p.random(-0.25,0.25);
+      p.push();
+      p.translate(cx,cy); p.rotate(rot);
       for(let k=0;k<3;k++){
-        p.noStroke(); p.fill(p.red(colr),p.green(colr),p.blue(colr), 110 - k*25);
+        p.noStroke();
+        p.fill(p.red(colr),p.green(colr),p.blue(colr), 115 - k*28);
         p.beginShape();
-        const pts = 14;
-        for (let a=0;a<pts;a++){
-          const t=a/pts*p.TWO_PI;
-          const r = baseR * (0.85 + 0.25*p.noise(i*10 + a*0.7 + p.frameCount*0.0005));
-          p.vertex(ox + r*Math.cos(t), oy + r*Math.sin(t));
+        const n = 16;
+        for(let a=0;a<n;a++){
+          const t=a/n*p.TWO_PI;
+          const r = baseR * (0.85 + 0.22*p.noise(i*10 + a*0.7 + p.frameCount*0.0004));
+          p.vertex(r*Math.cos(t), r*Math.sin(t));
         }
         p.endShape(p.CLOSE);
       }
-      // halftone/dither dots
-      for (let d=0; d<120; d++){
-        const rx = ox + p.random(-baseR, baseR);
-        const ry = oy + p.random(-baseR, baseR);
-        const rad = p.random(1,2.6);
-        if (p.dist(rx,ry,ox,oy) < baseR*1.05){
-          p.noStroke(); p.fill(30,20,10,25);
-          p.circle(rx,ry,rad);
+      // ink freckles
+      for(let d=0; d<140; d++){
+        const rx = p.random(-baseR, baseR), ry = p.random(-baseR, baseR);
+        if (p.dist(rx,ry,0,0) < baseR*1.02){
+          p.noStroke(); p.fill(30,20,10,22);
+          p.circle(rx,ry,p.random(1,2.6));
         }
       }
+      p.pop();
     }
     p.pop();
-
-    // focal “You”
-    drawYouBadge();
-    // sprinkle moments as small stamps
-    stampMoments();
   }
 
-  function isotypeBloom(){
-    bgPaper();
-    const N = Math.max(3, Math.min(60, SCHEMA.attendees||12));
-    const rings = Math.ceil(N/12);
-    const step = Math.min(W,H)*0.10;
+  // Slitscan bands (temporal scanlines that curve)
+  function slitscanBands(){
+    p.push();
+    const bands = 7;
+    for(let b=0;b<bands;b++){
+      const y0 = inner.y + inner.h*(0.15 + 0.7*b/bands);
+      const thick = 7 + 9 * p.noise(b*0.3 + (p.frameCount*0.002)*(SCHEMA.energy||0.2));
+      const cc = p.lerpColor(B,C, b/bands);
+      p.stroke(p.red(cc),p.green(cc),p.blue(cc), 70);
+      p.strokeWeight(thick);
+      p.noFill();
+      // gentle bezier wave
+      const x1=inner.x+40, x4=inner.x+inner.w-40;
+      const x2=p.lerp(x1,x4, 0.33), x3=p.lerp(x1,x4, 0.66);
+      const y1=y0 + 16*p.noise(b+0.1), y4=y0 + 16*p.noise(b+0.2);
+      const y2=y0 - 26*p.noise(b+1.2), y3=y0 + 26*p.noise(b+2.3);
+      p.bezier(x1,y1, x2,y2, x3,y3, x4,y4);
+    }
+    p.pop();
+  }
 
-    // stems & dots (countable)
-    let idx=0;
-    for (let r=1;r<=rings;r++){
-      const per = Math.min(12, N-(r-1)*12);
-      for (let i=0;i<per;i++){
-        const a = -p.HALF_PI + i/per * p.TWO_PI;
-        const px = cx + r*step*Math.cos(a);
-        const py = cy + r*step*Math.sin(a);
-        p.stroke(100,85,75,90); p.strokeWeight(1.6);
-        p.line(cx, cy, px, py);
-        const cc = [A,B,C][(r+i)%3];
-        p.noStroke(); p.fill(p.red(cc),p.green(cc),p.blue(cc), 200);
-        p.circle(px, py, 10 + 2*Math.sin((idx++)*0.3 + p.frameCount*0.01*(SCHEMA.energy||0)));
+  // Central kernel (memory “core”) + faint ring ticks
+  function kernel(){
+    const cx = inner.x + inner.w*0.52;
+    const cy = inner.y + inner.h*0.62;
+    const base = Math.min(inner.w,inner.h)*0.12;
+    function glow(x,y,r,col){ p.noStroke();
+      for(let rad=r; rad>0; rad-=6){
+        const a=p.map(rad,0,r,200,0);
+        p.fill(p.red(col),p.green(col),p.blue(col), a*0.5);
+        p.circle(x,y,rad*2);
       }
     }
+    glow(cx,cy, base*1.0, p.color(255,205,120,125));
+    p.noStroke(); p.fill(255,205,120,220); p.circle(cx,cy, base*0.9);
 
-    // tiny group tickers
-    p.textAlign(p.CENTER,p.BOTTOM); p.fill(90,70,60,150); p.textSize(12);
-    const G=SCHEMA.groups||["Friends"];
-    for (let g=0; g<G.length; g++){
-      const ang=-p.HALF_PI + g*(p.TWO_PI/G.length);
-      const gx=cx + (rings+0.4)*step*Math.cos(ang);
-      const gy=cy + (rings+0.4)*step*Math.sin(ang);
-      p.text(G[g], gx, gy);
-    }
-
-    drawYouBadge();
-    stampMoments();
-  }
-
-  function inkArcWeave(){
-    bgPaper();
-    p.push(); p.blendMode(p.MULTIPLY);
-    const layers = 18;
-    for (let i=0;i<layers;i++){
-      const t = i/layers;
-      const cc = p.lerpColor(A,C,t);
-      p.stroke(p.red(cc),p.green(cc),p.blue(cc), 60);
-      p.noFill();
-      p.strokeWeight(1.4);
-      const R = Math.min(W,H)*(0.18 + 0.28*t);
-      const start = -p.PI + t*0.7, end = -0.1 - t*0.3;
-      p.arc(cx, cy, R*2, R*2, start, end);
-
-      // bleed-like offsets
-      p.stroke(p.red(cc),p.green(cc),p.blue(cc), 28);
-      p.arc(cx+2, cy+1, R*2, R*2, start+0.04, end+0.04);
-    }
-    p.pop();
-
-    // sparse crossing threads (friends)
-    const N = Math.max(3, Math.min(60, SCHEMA.attendees||12));
-    const R2 = Math.min(W,H)*0.34;
-    for (let i=0;i<N;i++){
-      const a1 = -p.PI + i/N * p.TWO_PI;
-      const a2 = a1 + p.random(-0.8,0.8);
-      const x1=cx + R2*Math.cos(a1), y1=cy + R2*Math.sin(a1);
-      const x2=cx + R2*Math.cos(a2), y2=cy + R2*Math.sin(a2);
-      p.stroke(100,80,70,70); p.strokeWeight(1);
-      p.bezier(x1,y1, p.lerp(x1,cx,0.3), p.lerp(y1,cy,0.3),
-                     p.lerp(x2,cx,0.3), p.lerp(y2,cy,0.3), x2,y2);
-    }
-
-    drawYouBadge();
-    stampMoments();
-  }
-
-  // ───────────────── helpers
-  function drawYouBadge(){
-    const baseR = 44 + (SCHEMA.energy||0.5)*18;
-    drawGlow(cx,cy, baseR*0.95, p.color(255,205,120,120));
-    p.noStroke(); p.fill(255,205,120,220); p.circle(cx,cy, baseR*0.8);
-    p.fill(90,70,60,170); p.textAlign(p.CENTER,p.CENTER); p.textSize(13); p.text("You", cx, cy);
-  }
-  function drawGlow(x,y,rad,col){
-    p.noStroke();
-    for (let r=rad; r>0; r-=6){
-      const a=p.map(r,0,rad,200,0);
-      p.fill(p.red(col),p.green(col),p.blue(col), a*0.50);
-      p.circle(x,y,r*2);
-    }
-  }
-  function stampMoments(){
-    const ringR = Math.min(W,H)*0.44;
-    const icons={cake:"🍰", toast:"🥂", photos:"📸", dance:"💃", gift:"🎁", laughter:"😄"};
-    const ms = SCHEMA.moments||[];
-    p.textAlign(p.CENTER,p.CENTER); p.textSize(18);
-    for (let i=0;i<ms.length;i++){
-      const a=i/Math.max(1,ms.length) * p.TWO_PI - p.PI/2 + 0.22;
-      const x=cx + ringR*Math.cos(a), y=cy + ringR*Math.sin(a);
-      p.noStroke(); p.fill(80,60,50,155);
-      p.text(icons[ms[i]]||"•", x, y);
+    // delicate ticks around—temporal feel without a ruler
+    p.noFill(); p.stroke(90,70,60,70); p.strokeWeight(1.2);
+    p.circle(cx,cy, base*2.0);
+    const ticks = 36;
+    for(let i=0;i<ticks;i++){
+      const a = -p.HALF_PI + i/ticks*p.TWO_PI;
+      const r1=base*0.95, r2=base*1.05;
+      p.line(cx+r1*Math.cos(a), cy+r1*Math.sin(a),
+             cx+r2*Math.cos(a), cy+r2*Math.sin(a));
     }
   }
 
-  function drawLegend(){
-    if (!__SHOW_LEGEND__) return;
-    const el = document.getElementById('legend'); el.style.display='block';
-    const sw = (hex)=>`<span class="sw" style="background:${hex}"></span>`;
-    el.innerHTML = `
-      <div class="row"><strong>Legend</strong></div>
-      <div class="row">${sw(SCHEMA.palette[0])} Background tone</div>
-      <div class="row">${sw('#FFC973')} Center = You</div>
-      <div class="row">◎ Moments ring: ${SCHEMA.moments.join(', ')}</div>
-      <div class="row">Style: ${SCHEMA.style}</div>
-    `;
-  }
-
-  // ───────────────── run
-  function drawStyle(){
-    if (SCHEMA.style === "Risograph Collage")      risographCollage();
-    else if (SCHEMA.style === "Isotype Bloom")     isotypeBloom();
-    else                                           inkArcWeave();
+  // Text fragments (drifting micro-annotations)
+  function fragments(){
+    const fr = (SCHEMA.fragments||[]).slice(0,10);
+    p.textAlign(p.CENTER,p.CENTER);
+    p.textSize(14); p.fill(70,55,48,155);
+    const cx = inner.x + inner.w*0.52;
+    const cy = inner.y + inner.h*0.62;
+    for(let i=0;i<fr.length;i++){
+      const a = -p.HALF_PI + i/fr.length * p.TWO_PI + 0.25;
+      const R = Math.min(inner.w,inner.h) * (0.23 + 0.18*p.noise(i*0.3));
+      const wob = 10*Math.sin(p.frameCount*(0.004 + 0.0005*i) * (SCHEMA.energy||0.2) + i);
+      const x = cx + (R+wob)*Math.cos(a);
+      const y = cy + (R+wob)*Math.sin(a);
+      p.text(fr[i], x, y);
+    }
   }
 
   p.setup = function(){
-    const c = p.createCanvas(W,H); c.parent(document.getElementById('p5mount'));
-    drawLegend();
+    const c = p.createCanvas(W,H);
+    c.parent(document.getElementById('p5mount'));
   };
-  p.draw = function(){ drawStyle(); };
+
+  p.draw = function(){
+    bgEditorial();
+    monotypePlates();
+    slitscanBands();
+    kernel();
+    fragments();
+  };
 });
 </script>
 </body>
 </html>
 """
 
-labels_str = "|".join(schema["labels"])
 p5_html = (
     p5_template
     .replace("__HASH__", schema_hash)
     .replace("__SCHEMA__", SCHEMA_JS)
-    .replace("__SHOW_LEGEND__", "true" if show_legend else "false")
-    .replace("__SHOW_NAMES__", "true" if show_names else "false")
-    .replace("__CAPTION__", schema["caption"])
-    .replace("__SUBTITLE__", schema["subtitle"])
+    .replace("__CAPTION__", "Visual Memory")
+    .replace("__SUBTITLE__", "ReCollection-inspired")
 )
 
 if go:
-    components_html(p5_html, height=980, scrolling=False)
+    components_html(p5_html, height=1060, scrolling=False)
 else:
-    st.info("Pick an **Aesthetic** and click **Generate**. You can also paste a custom 3-color palette like `#FFB300,#F6511D,#7FB800`.")
+    st.info("Type your memory and click **Generate**. The card is deterministic per story and keeps motion minimal.")
