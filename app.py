@@ -40,7 +40,9 @@ def generate_journal_image(narration, date):
     text = f"{date} - {narration}"
 
     # Add the text to the image (bottom-left corner)
-    text_width, text_height = draw.textsize(text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=font)  # Get bounding box for text
+    text_width, text_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    
     position = (width - text_width - 30, height - text_height - 30)
     draw.text(position, text, font=font, fill=(255, 255, 255))  # white color
 
