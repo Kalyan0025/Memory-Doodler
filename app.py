@@ -43,9 +43,9 @@ seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % (2**31 - 1)
 L_POS = ["joy", "happy", "happiness", "love", "laugh", "smile", "grateful", "peace", "calm", "celebrate", "birthday", "together", "hug", "success", "fun"]
 L_NEG = ["sad", "cry", "alone", "lonely", "fear", "anxious", "stress", "angry", "regret", "loss", "breakup", "hurt", "pain", "miss", "grief", "tired"]
 L_HIGH = ["party", "dance", "festival", "rush", "screamed", "crowd", "concert", "goal", "celebration", "fireworks"]
-L_LOW = ["quiet", "still", "slow", "breeze", "soft", "silent", "night", "dawn", "sunset", "walk", "beach", "reading", "tea", "coffee"]
+L_LOW = ["quiet", "still", "slow", "breeze", "gentle", "soft", "silent", "night", "dawn", "sunset", "walk", "beach", "library", "rain", "reading", "meditate", "tea", "coffee"]
 L_SOC = ["friends", "family", "together", "team", "crowd", "group", "party", "reunion", "gathering"]
-L_NOST = ["yesterday", "childhood", "memories", "remember", "nostalgia", "nostalgic", "school", "college", "old", "grandma", "album", "photo"]
+L_NOST = ["yesterday", "childhood", "memories", "remember", "nostalgia", "nostalgic", "school", "college", "old", "grandma", "album", "photo", "photos", "vintage"]
 
 def score(words): 
     return sum(2 if f" {w} " in f" {t.lower()} " else 0 for w in words)
@@ -153,8 +153,8 @@ if go:
     try:
         model = genai.GenerativeModel("imagen-3.0")
         with st.spinner("Reconstructing your visual memory..."):
-            result = model.generate_image(prompt=prompt_text)
-            image_data = result.image
+            result = model.generate_images(prompt=prompt_text, num_images=1)
+            image_data = result[0]
             st.image(image_data, caption="✨ ReCollection-inspired Memory", use_column_width=True)
 
         img_bytes = generate_with_vertex(
