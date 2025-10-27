@@ -50,6 +50,11 @@ arousal = max(0.0, min(1.0, sig(score(L_HIGH) - score(L_LOW))))
 social = max(0.0, min(1.0, sig(score(L_SOC))))
 nostalgia = max(0.0, min(1.0, sig(score(L_NOS))))
 
+# Debug prints to check values
+st.write(f"Memory Fragments: {frags}")
+st.write(f"Selected Symbol: {symbol}")
+st.write(f"Palette: {BG}, {P1}, {P2}")
+
 # ──────────────────────────────────────
 # Keyword Extraction (Fragments)
 # ──────────────────────────────────────
