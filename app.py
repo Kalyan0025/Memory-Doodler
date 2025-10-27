@@ -1,7 +1,7 @@
 import os, json, re, textwrap
 import streamlit as st
 from dotenv import load_dotenv
-import random
+import datetime  # Import datetime module
 
 # ──────────────────────────────
 # 1️⃣ Setup
@@ -110,9 +110,10 @@ prompt = st.text_area(
     height=120,
 )
 
+# Add date input
 date = st.date_input(
     "Pick a date",
-    value="2025-10-26"
+    value=datetime.date(2025, 10, 26)  # Corrected to use datetime.date object
 )
 
 colA, colB = st.columns(2)
