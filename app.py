@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from PIL import Image
 from io import BytesIO
@@ -7,7 +8,31 @@ from io import BytesIO
 # Function to get API key from identity.txt
 def get_api_key():
     with open("identity.txt", "r") as f:
-        return f.read().strip()
+        return f.read().strip()  # Reads the API key from identity.txt
+
+# Function to load bot rules from bot_rules.xml
+def load_bot_rules():
+    # Parse the XML file
+    tree = ET.parse('bot_rules.xml')
+    root = tree.getroot()
+
+    # Extract elements from the XML
+    role = root.find('Role').text
+    goal = root.find('Goal').text
+    rules = root.find('Rules').text
+    knowledge = root.find('Knowledge').text
+    specialized_actions = root.find('SpecializedActions').text
+    guidelines = root.find('Guidelines').text
+
+    # Print or store the bot's rules and info as needed (for debugging or further use)
+    return {
+        "Role": role,
+        "Goal": goal,
+        "Rules": rules,
+        "Knowledge": knowledge,
+        "SpecializedActions": specialized_actions,
+        "Guidelines": guidelines
+    }
 
 # Function to generate image using the Gemini API
 def generate_image(prompt):
@@ -46,7 +71,14 @@ def generate_image(prompt):
 
 # Streamlit front-end
 def main():
+    # Load the bot's rules from XML
+    bot_rules = load_bot_rules()
+
     st.title("DreamDoodler - Visual Journal")
+
+    # Display the bot's role and goal (optional, for debugging or information)
+    st.write(f"**Bot Role**: {bot_rules['Role']}")
+    st.write(f"**Bot Goal**: {bot_rules['Goal']}")
 
     # User inputs
     st.write("Please describe your dream, memory, or scenario:")
