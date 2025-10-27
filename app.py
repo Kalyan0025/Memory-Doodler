@@ -175,41 +175,6 @@ label {
     color: #4ecdc4;
 }
 
-/* Color palette */
-.palette-container {
-    display: flex;
-    gap: 1rem;
-    margin: 1rem 0;
-}
-
-.color-swatch {
-    flex: 1;
-    height: 80px;
-    border-radius: 12px;
-    border: 3px solid #333;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    transition: all 0.3s ease;
-}
-
-.color-swatch:hover {
-    transform: translateY(-5px) rotate(5deg);
-}
-
-/* Caption display */
-.caption-display {
-    background: #252525;
-    border: 3px dashed #444;
-    border-radius: 15px;
-    padding: 1.5rem;
-    margin: 1rem 0;
-    font-family: 'Kalam', cursive;
-    font-size: 1.3rem;
-    color: #b0b0b0;
-    text-align: center;
-    font-style: italic;
-    transform: rotate(-0.5deg);
-}
-
 /* Doodle decorations */
 .doodle-icon {
     display: inline-block;
@@ -253,100 +218,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# Gemini setup (safe + fallback)
-# ──────────────────────────────
-USE_GEMINI = True
-try:
-    import google.generativeai as genai
-except Exception:
-    USE_GEMINI = False
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-PREF_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
-
-available_models, chosen_model = [], None
-if USE_GEMINI and GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    try:
-        for m in genai.list_models():
-            if "generateContent" in getattr(m, "supported_generation_methods", []):
-                if "flash" in m.name and "exp" not in m.name:
-                    available_models.append(m.name)
-        for c in (PREF_MODEL, f"models/{PREF_MODEL}"):
-            if c in available_models:
-                chosen_model = c
-                break
-        if not chosen_model and available_models:
-            chosen_model = available_models[0]
-    except Exception as e:
-        st.warning(f"Model listing failed; fallback. ({e})")
-        chosen_model = None
-else:
-    chosen_model = None
-
-# ──────────────────────────────
-# Local fallback schema generator
-# ──────────────────────────────
-def local_schema_from_text(text: str, default_schema: dict) -> dict:
-    t = text.lower()
-    EMO = {
-        "joy": ["happy", "fun", "birthday", "party", "smile", "laugh"],
-        "nostalgia": ["childhood", "old", "school", "remember", "reunion"],
-        "calm": ["calm", "peace", "quiet", "relax"],
-        "love": ["love", "together", "family", "friends"],
-        "sad": ["sad", "alone", "miss", "cry", "loss"],
-        "anxiety": ["stress", "worried", "fear", "nervous"],
-    }
-    counts = {e: sum(t.count(k) for k in kws) for e, kws in EMO.items()}
-    emotion = max(counts, key=counts.get) if any(counts.values()) else "nostalgia"
-
-    exclaim = t.count("!")
-    caps = sum(1 for w in re.findall(r"[A-Z]{2,}", text) if len(w) > 2)
-    intensity = min(1.0, 0.4 + 0.1 * exclaim + 0.05 * caps)
-
-    PALETTES = {
-        "joy": ["#FFD482", "#F79892", "#F5B3FF"],
-        "nostalgia": ["#F7C6B3", "#EBD8C3", "#C0A5D7"],
-        "calm": ["#B9E3FF", "#DDEBF2", "#BFD6C7"],
-        "love": ["#FFB3C1", "#FFDDE1", "#FFF0F3"],
-        "sad": ["#9DB4C0", "#6C7A89", "#C7D3DD"],
-        "anxiety": ["#A3B1C6", "#D6D6D6", "#8A9DB0"],
-    }
-    palette = PALETTES.get(emotion, default_schema["palette"])
-
-    nodes = 6 if "friend" in t else 4
-    for w in ["friends", "family", "group", "team", "all"]:
-        if w in t:
-            nodes += 2
-    nodes = max(3, min(20, nodes))
-
-    caption = "A day to remember"
-    if "birthday" in t and "friend" in t:
-        caption = "Old friends, new laughter"
-    elif "birthday" in t:
-        caption = "A day that glowed"
-    elif "reunion" in t or "childhood" in t:
-        caption = "Back to where we began"
-
-    summary = "Special day"
-    if "birthday" in t:
-        summary = "Birthday memories"
-    elif "friend" in t:
-        summary = "Friend reunion"
-    elif "childhood" in t:
-        summary = "Nostalgic moments"
-
-    return {
-        "emotion": emotion,
-        "intensity": round(intensity, 2),
-        "palette": palette,
-        "nodes": int(nodes),
-        "caption": caption,
-        "summary": summary,
-    }
-
-# ──────────────────────────────
-# UI Layout - Two Columns
+# UI Layout
 # ──────────────────────────────
 col1, col2 = st.columns([1, 1])
 
@@ -417,16 +289,6 @@ if do_generate:
 with col2:
     st.json(schema)
     
-    # Color palette
-    st.markdown("**Color Palette**")
-    st.markdown(f"""
-    <div class="palette-container">
-        <div class="color-swatch" style="background: {schema['palette'][0]};"></div>
-        <div class="color-swatch" style="background: {schema['palette'][1]};"></div>
-        <div class="color-swatch" style="background: {schema['palette'][2]};"></div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     # Metadata grid
     meta_col1, meta_col2 = st.columns(2)
     with meta_col1:
@@ -460,10 +322,15 @@ with col2:
         </div>
         """, unsafe_allow_html=True)
     
-    # Caption
+    # Caption and Summary
     st.markdown(f"""
     <div class="caption-display">
         "{date} — {schema['caption']}"
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="caption-display">
+        Summary: {schema['summary']}
     </div>
     """, unsafe_allow_html=True)
 
