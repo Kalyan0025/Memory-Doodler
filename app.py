@@ -1,24 +1,35 @@
-import os
-import json
-import re
-import textwrap
+import os, json, re, textwrap
 import streamlit as st
 from dotenv import load_dotenv
 
 # ──────────────────────────────
 # 1️⃣ Setup
 # ──────────────────────────────
-load_dotenv()  # Load environment variables from .env file
+load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
 st.title("🌙 Dream / Memory Doodler")
 
 # ──────────────────────────────
-# 2️⃣ Gemini setup (safe + fallback) – REMOVE THIS PART COMPLETELY
+# 2️⃣ UI input
 # ──────────────────────────────
-USE_GEMINI = False  # Disable Gemini for now (skip API setup)
+prompt = st.text_area(
+    "Describe your memory/dream/incident",
+    value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
+    height=120,
+)
+date = st.date_input(
+    "Pick a date",
+    value="2025-10-26"
+)
+
+colA, colB = st.columns(2)
+with colA:
+    do_generate = st.button("Generate")
+with colB:
+    st.caption("Write any memory — happy, calm, or nostalgic.")
 
 # ──────────────────────────────
-# 3️⃣ Local heuristic schema generator (offline fallback)
+# 3️⃣ Emotional Context & Schema Generator
 # ──────────────────────────────
 def local_schema_from_text(text: str, default_schema: dict) -> dict:
     t = text.lower()
@@ -49,8 +60,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
 
     nodes = 6 if "friend" in t else 4
     for w in ["friends", "family", "group", "team", "all"]:
-        if w in t:
-            nodes += 2
+        if w in t: nodes += 2
     nodes = max(3, min(20, nodes))
 
     caption = "A day to remember"
@@ -74,21 +84,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     }
 
 # ──────────────────────────────
-# 4️⃣ UI input
-# ──────────────────────────────
-prompt = st.text_area(
-    "Describe your memory/dream/incident",
-    value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
-    height=120,
-)
-colA, colB = st.columns(2)
-with colA:
-    do_generate = st.button("Generate")
-with colB:
-    st.caption("Write any memory — happy, calm, or nostalgic.")
-
-# ──────────────────────────────
-# 5️⃣ Default schema
+# 4️⃣ Default schema
 # ──────────────────────────────
 default_schema = {
     "emotion": "warm nostalgia",
@@ -100,13 +96,13 @@ default_schema = {
 schema = default_schema.copy()
 
 # ──────────────────────────────
-# 6️⃣ Local schema generation (since Gemini is disabled)
+# 5️⃣ Generate the Schema
 # ──────────────────────────────
 if do_generate:
     schema = local_schema_from_text(prompt, default_schema)
 
 # ──────────────────────────────
-# 7️⃣ p5.js visualization
+# 6️⃣ p5.js visualization (based on schema)
 # ──────────────────────────────
 from streamlit.components.v1 import html as st_html
 
@@ -242,11 +238,13 @@ function drawGlow(p,x,y,radius,col) {{
 </body>
 </html>
 """
+
+# Displaying the HTML visualization
 st.components.v1.html(p5_html, height=980, scrolling=False)
 
 # ──────────────────────────────
-# 8️⃣ Debug info
+# 7️⃣ Debug info
 # ──────────────────────────────
-with st.expander("Gemini debug"):
-    st.write("Gemini API is disabled, using local schema generator.")
+with st.expander("Debug info"):
+    st.write("Schema:")
     st.json(schema)
