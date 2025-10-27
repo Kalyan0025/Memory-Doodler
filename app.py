@@ -1,38 +1,91 @@
+import os
 import requests
+import mimetypes
+import streamlit as st
+from google import genai
+from google.genai import types
+from PIL import Image
+from io import BytesIO
 
-# Replace this with your actual API key from identity.txt
-api_key = "your_actual_gemini_api_key_here"  # Ensure you place the real key here
+# Get API key (ensure it's loaded properly)
+api_key = "AIzaSyCwlOzQeRl5uHHg8Kswl3czJt1WCbdLr44"  # Use your actual API key here
 
-# Check if API key is loaded correctly
-if not api_key:
-    print("Error: API key is missing or incorrect!")
-else:
-    print("API key is loaded correctly.")
+def save_binary_file(file_name, data):
+    """Function to save binary data to a file"""
+    with open(file_name, "wb") as f:
+        f.write(data)
+    print(f"File saved to: {file_name}")
 
-url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"
-headers = {
-    "Authorization": f"Bearer {api_key}",
-    "Content-Type": "application/json"
-}
-data = {
-    "prompt": "A beautiful sunset over the ocean."  # Example prompt
-}
-
-# Add print statements to confirm script execution
-print("Sending request to Gemini API...")
-
-try:
-    # Send the POST request to Gemini API
-    response = requests.post(url, headers=headers, json=data)
+def generate_image(user_prompt):
+    """Function to generate image using the Gemini API"""
+    client = genai.Client(api_key=api_key)
     
-    # Print the status code for debugging
-    print(f"Response status code: {response.status_code}")
+    model = "gemini-2.5-flash-image"  # Your model
+    contents = [
+        types.Content(
+            role="user",
+            parts=[types.Part.from_text(user_prompt)],  # Text prompt to generate the image
+        ),
+    ]
     
-    # Check if the status code is 200 (success)
-    if response.status_code == 200:
-        print("Image generated successfully!")
-        print("Response:", response.json())  # Print the JSON response
-    else:
-        print(f"Error: {response.status_code} - {response.text}")
-except requests.exceptions.RequestException as e:
-    print(f"Request failed: {e}")
+    generate_content_config = types.GenerateContentConfig(
+        response_modalities=["IMAGE", "TEXT"]  # Expecting IMAGE and TEXT responses
+    )
+
+    file_index = 0  # Counter for multiple image files
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=generate_content_config,
+    ):
+        if (
+            chunk.candidates is None
+            or chunk.candidates[0].content is None
+            or chunk.candidates[0].content.parts is None
+        ):
+            continue
+        
+        # Checking if inline data exists (image binary data)
+        if chunk.candidates[0].content.parts[0].inline_data:
+            inline_data = chunk.candidates[0].content.parts[0].inline_data
+            file_name = f"generated_image_{file_index}"  # Increment file name if multiple images are generated
+            file_index += 1
+            file_extension = mimetypes.guess_extension(inline_data.mime_type)
+            save_binary_file(f"{file_name}{file_extension}", inline_data.data)
+            return f"{file_name}{file_extension}"
+        else:
+            print(chunk.text)  # Print any error message if the image data is not available
+
+def main():
+    st.title("DreamDoodler - Visual Journal")
+
+    # User input
+    scenario = st.text_area("Scenario Description")
+    emotion = st.text_input("Emotion (e.g., joyful, nostalgic, sad, etc.)")
+
+    # Generate button
+    if st.button("Generate Visual"):
+        if scenario and emotion:
+            # Create the prompt based on user input
+            prompt = f"Create a dreamy, emotional scene based on the following scenario: {scenario}. The emotion is {emotion}."
+            # Call the image generation function
+            image_file = generate_image(prompt)
+
+            if image_file:
+                # Open and display the generated image in Streamlit
+                image = Image.open(image_file)
+                st.image(image, caption="Generated Image", use_column_width=True)
+
+                # Provide download button for the generated image
+                with open(image_file, "rb") as file:
+                    st.download_button(
+                        label="Download Image",
+                        data=file,
+                        file_name="dream_visual.png",
+                        mime="image/png"
+                    )
+        else:
+            st.error("Please provide both scenario and emotion.")
+
+if __name__ == "__main__":
+    main()
