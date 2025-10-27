@@ -1,1 +1,1 @@
-AIzaSyCwlOzQeRl5uHHg8Kswl3czJt1WCbdLr44
+# Use this if integrating Google Cloud Authentication for p5.js API calls (not needed if you're just running locally)
