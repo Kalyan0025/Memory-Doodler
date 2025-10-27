@@ -1,20 +1,15 @@
-import re, json, hashlib, math
 import streamlit as st
-import google.generativeai as genai
-from vertexai import init as vertexai_init
-from vertexai.preview.vision_models import ImageGenerationModel
+import json
+import hashlib
 
 # ──────────────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────────────
-st.set_page_config(page_title="Visual Memory — ReCollection-inspired", page_icon="🌀", layout="centered")
+st.set_page_config(page_title="Visual Memory — ReCollection × Data Humanism", page_icon="🌀", layout="centered")
 st.title("🌀 Visual Memory (ReCollection × Data Humanism)")
 
-# Configure Gemini API key
-genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE"))
-
 # ──────────────────────────────────────
-# INPUT: User Memory
+# 1) INPUT: Story and Emotion Data
 # ──────────────────────────────────────
 story = st.text_area(
     "Whisper your memory (a few sentences work best)",
@@ -33,120 +28,112 @@ seed_text = (t + f"|{motion:.2f}") or "empty"
 seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % 10**9
 tl = t.lower()
 
-# Sentiment lexicons
+# Define sentiment lexicons
 L_POS = ["joy", "happy", "happiness", "love", "laugh", "smile", "grateful", "peace", "calm", "celebrate", "birthday", "friends", "together", "hug", "success", "fun"]
 L_NEG = ["sad", "cry", "alone", "lonely", "fear", "anxious", "stress", "angry", "regret", "loss", "hurt", "pain", "miss", "grief", "tired"]
 L_HIGH = ["ecstatic", "rush", "party", "dance", "screamed", "wild", "storm", "fireworks", "concert", "goal", "race", "rollercoaster"]
 L_LOW = ["quiet", "still", "slow", "breeze", "gentle", "soft", "silent", "night", "dawn", "sunset", "walk", "beach", "rain", "reading"]
-L_SOC = ["friends", "family", "together", "team", "crowd", "group", "party", "reunion", "gathering"]
-L_NOST = ["yesterday", "childhood", "memories", "remember", "nostalgia", "old", "photo", "photos"]
 
-# Score function
+# Calculate sentiment scores
 def score(words): 
     return sum(2 if f" {w} " in f" {tl} " else 0 for w in words)
 
-val_raw = score(L_POS) - score(L_NEG)      # >0 = positive
-aro_raw = score(L_HIGH) - score(L_LOW)     # >0 = energetic
-soc_raw = score(L_SOC) 
-nos_raw = score(L_NOST)
-
-# Sigmoid function for scaling
-def sig(x): return 1/(1+math.exp(-x/4))
-
-valence   = max(-1.0, min(1.0, (sig(val_raw)-0.5)*2))
-arousal   = max(0.0, min(1.0, sig(aro_raw)))
-social    = max(0.0, min(1.0, sig(soc_raw)))
-nostalgia = max(0.0, min(1.0, sig(nos_raw)))
+val_raw = score(L_POS) - score(L_NEG)  # >0 = positive
+aro_raw = score(L_HIGH) - score(L_LOW)  # >0 = energetic
+valence = max(-1.0, min(1.0, (val_raw - 0.5) * 2))
+arousal = max(0.0, min(1.0, aro_raw / 2))
+social = max(0.0, min(1.0, score(["friends", "family", "together"]) / 10))
+nostalgia = max(0.0, min(1.0, score(["childhood", "memories", "nostalgia"]) / 10))
 
 # ──────────────────────────────────────
-# 3) PROMPT BUILDER
+# 3) p5.js Code
 # ──────────────────────────────────────
-def build_visual_prompt(story, valence, arousal, social, nostalgia):
-    base = (
-        "A cinematic generative artwork inspired by Weidi Zhang’s 'ReCollection' and Giorgia Lupi’s data humanism — "
-        "depicting memories as glowing particles and soft smoke-like silhouettes, blending art and emotion."
-    )
-    
-    # Symbolic element
-    if any(k in story.lower() for k in ["birthday", "cake", "party", "friends"]):
-        symbol = "a small glowing birthday cake at the center"
-    elif any(k in story.lower() for k in ["beach", "ocean", "sea", "waves"]):
-        symbol = "a glowing seashell radiating warmth"
-    elif any(k in story.lower() for k in ["loss", "alone", "lonely", "grief"]):
-        symbol = "a dim lamp near a solitary figure"
-    elif any(k in story.lower() for k in ["school", "childhood", "photo", "memories"]):
-        symbol = "soft silhouettes of children and a glowing photo frame"
-    else:
-        symbol = "a luminous core representing the essence of memory"
 
-    # Mood palette
-    if valence > 0.3 and arousal > 0.5:
-        mood = "warm ambers and golden tones symbolizing happiness and reunion"
-    elif valence < -0.3 and nostalgia > 0.5:
-        mood = "muted violet and silver hues expressing bittersweet emotion"
-    else:
-        mood = "neutral beige and grey gradients representing calm recollection"
+# Build the visual prompt (send the data to p5.js as JSON)
+def build_visual_prompt():
+    return {
+        "valence": round(valence, 3),
+        "arousal": round(arousal, 3),
+        "social": round(social, 3),
+        "nostalgia": round(nostalgia, 3),
+        "story": story,
+        "motion": motion,
+    }
 
-    # Composition
-    if social > 0.5:
-        composition = "multiple humanoid silhouettes softly dissolving into fog and light"
-    else:
-        composition = "a single solitary silhouette surrounded by drifting particles"
+# Convert the visual prompt to JSON
+visual_prompt = build_visual_prompt()
 
-    return (
-        f"{base} Scene: {composition}, illuminated by {symbol}. "
-        f"Color palette: {mood}. "
-        f"Aesthetic: dreamlike, fog and particulate diffusion, edges softly eroded like a decaying photograph reforming in air."
-    )
+# Display the JSON in Streamlit
+st.json(visual_prompt)
 
 # ──────────────────────────────────────
-# 4) IMAGE GENERATION (USING GEMINI)
+# 4) p5.js Integration with Streamlit (using Streamlit Components)
 # ──────────────────────────────────────
-def generate_with_vertex(prompt: str, aspect_ratio: str, guidance: int, seed_val: int|None):
-    project_id = st.secrets.get("GCP_PROJECT_ID")
-    location   = st.secrets.get("GCP_LOCATION", "us-central1")
-    if not project_id:
-        raise RuntimeError("Missing GCP_PROJECT_ID in .streamlit/secrets.toml")
-    
-    vertexai_init(project=project_id, location=location)
-    model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
-    resp = model.generate_images(
-        prompt=prompt,
-        number_of_images=1,
-        aspect_ratio=aspect_ratio,
-        guidance_scale=guidance,
-        seed=seed_val if seed_val is not None else None,
-        safety_filter_level="block_few",    
-    )
-    return resp.images[0] if resp else None
+# Embed the p5.js code as HTML (via streamlit.components.v1.html)
+SCHEMA_JS = json.dumps(visual_prompt, separators=(",", ":"))
 
-# ──────────────────────────────────────
-# 5) GENERATE VISUAL MEMORY
-# ──────────────────────────────────────
+p5_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="x-schema-hash" content="__HASH__"/>
+    <style>
+        html, body {{ margin:0; padding:0; background:#0f1115; }}
+        #card {{ width: 980px; height: 980px; margin: 24px auto; background: #faf7f5; border-radius: 28px; box-shadow: 0 16px 40px rgba(0,0,0,0.20); }}
+        #chrome {{ position:absolute; top:0; left:0; right:0; height: 64px; background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.60)); border-top-left-radius: 28px; }}
+        #p5mount {{ position:absolute; top:64px; left:0; right:0; bottom:56px; }}
+        #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; justify-content:space-between; padding:0 16px; color:#c8c6c3; font: 11px system-ui; }}
+    </style>
+</head>
+<body>
+    <div id="card">
+        <div id="chrome">
+            <div id="title">Visual Memory</div><div id="subtitle">ReCollection-inspired</div>
+        </div>
+        <div id="p5mount"></div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script>
+    const SCHEMA = __SCHEMA__;
+
+    new p5((p) => {{
+        const W=980, H=980;
+        const inner = {{x:0, y:64, w:W, h:H-64-56}};
+        const [A,B,C] = (SCHEMA.palette||["#FFD482", "#F79892", "#C0A5D7"]).map(h=>p.color(h));
+        const valence = SCHEMA.valence || 0;
+        const arousal = SCHEMA.arousal || 0;
+        const social = SCHEMA.social || 0;
+        const nostalgia = SCHEMA.nostalgia || 0;
+
+        p.setup = function() {{
+            const c = p.createCanvas(W, H);
+            c.parent(document.getElementById('p5mount'));
+        }};
+
+        p.draw = function() {{
+            p.background(0);
+
+            // Here you can add the logic for the visual elements based on emotional parameters
+            p.fill(255, 100 + valence * 100, 100 + arousal * 100);
+            p.ellipse(W / 2, H / 2, 300 + nostalgia * 200, 300 + social * 200);
+
+            // Example of using "motion" value to add dynamic changes
+            if (SCHEMA.motion > 0) {{
+                p.fill(255, 50, 50, 150);
+                p.circle(p.mouseX, p.mouseY, 50 + SCHEMA.motion * 20);
+            }}
+        }};
+    }});
+    </script>
+</body>
+</html>
+"""
+
+p5_html = p5_html.replace("__HASH__", hashlib.md5(SCHEMA_JS.encode()).hexdigest())
+p5_html = p5_html.replace("__SCHEMA__", SCHEMA_JS)
+
 if go:
-    prompt_text = build_visual_prompt(t, valence, arousal, social, nostalgia)
-    st.markdown("### 🪞 Generated Prompt")
-    st.code(prompt_text, language="markdown")
-    
-    try:
-        model = genai.GenerativeModel("imagen-3.0")
-        with st.spinner("Reconstructing your visual memory..."):
-            result = model.generate_images(prompt=prompt_text, num_images=1)
-            image_data = result[0]
-            st.image(image_data, caption="✨ ReCollection-inspired Memory", use_column_width=True)
-
-        img_bytes = generate_with_vertex(
-            prompt=prompt_text,
-            aspect_ratio="1:1", 
-            guidance=60, 
-            seed_val=seed if True else None
-        )
-        st.image(img_bytes, caption="Reconstructed Visual Memory", use_column_width=True)
-
-    except Exception as e:
-        st.error(f"Gemini API error: {e}")
-        st.error(f"Image generation error: {e}")
-        st.caption("Make sure Vertex AI is enabled, you're authenticated, and `.streamlit/secrets.toml` has GCP_PROJECT_ID & GCP_LOCATION.")
-
+    components_html(p5_html, height=1060, scrolling=False)
 else:
-    st.info("Type your memory and click **Generate Visual Memory** to create a smoke-like emotional reconstruction.")
+    st.info("Type your memory and click **Generate**. The card adapts to valence, arousal, socialness, and nostalgia; visuals are deterministic per story.")
