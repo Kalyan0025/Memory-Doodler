@@ -7,8 +7,250 @@ from streamlit.components.v1 import html as components_html
 # Setup
 # ──────────────────────────────
 load_dotenv()
-st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
-st.title("🌙 Dream / Memory Doodler")
+st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="wide")
+
+# ──────────────────────────────
+# Custom CSS - Dark Doodled Mode
+# ──────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Patrick+Hand&family=Kalam:wght@300;400;700&display=swap');
+
+/* Global dark mode styling */
+.stApp {
+    background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+}
+
+/* Hide default Streamlit elements */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Custom header */
+.main-header {
+    text-align: center;
+    margin: 2rem 0 3rem 0;
+    padding-bottom: 2rem;
+    border-bottom: 3px dashed rgba(78, 205, 196, 0.3);
+    animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.main-title {
+    font-family: 'Caveat', cursive;
+    font-size: 4rem;
+    font-weight: 700;
+    color: #f0f0f0;
+    margin-bottom: 0.5rem;
+    letter-spacing: 2px;
+    text-shadow: 3px 3px 6px rgba(0,0,0,0.7);
+    transform: rotate(-1deg);
+}
+
+.main-subtitle {
+    font-family: 'Kalam', cursive;
+    font-size: 1.2rem;
+    color: #4ecdc4;
+    font-style: italic;
+    transform: rotate(0.5deg);
+}
+
+/* Section styling */
+.stTextArea, .stTextInput {
+    font-family: 'Kalam', cursive !important;
+}
+
+.stTextArea textarea {
+    background: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border: 3px dashed #4ecdc4 !important;
+    border-radius: 15px !important;
+    font-family: 'Kalam', cursive !important;
+    font-size: 1.1rem !important;
+    padding: 1.5rem !important;
+    min-height: 200px !important;
+}
+
+.stTextInput input {
+    background: #1e1e1e !important;
+    color: #e0e0e0 !important;
+    border: 2px dashed #4ecdc4 !important;
+    border-radius: 12px !important;
+    font-family: 'Kalam', cursive !important;
+    font-size: 1rem !important;
+    padding: 0.8rem !important;
+}
+
+.stTextArea textarea:focus, .stTextInput input:focus {
+    border-color: #45b7d1 !important;
+    box-shadow: 0 0 20px rgba(78, 205, 196, 0.3) !important;
+}
+
+/* Button styling */
+.stButton button {
+    width: 100% !important;
+    padding: 1.2rem 2rem !important;
+    background: linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%) !important;
+    color: #1a1a1a !important;
+    border: 3px solid #333 !important;
+    border-radius: 15px !important;
+    font-family: 'Caveat', cursive !important;
+    font-size: 1.6rem !important;
+    font-weight: 700 !important;
+    box-shadow: 4px 4px 0px #333 !important;
+    transition: all 0.3s ease !important;
+}
+
+.stButton button:hover {
+    transform: translate(-2px, -2px) rotate(-1deg) !important;
+    box-shadow: 6px 6px 0px #333 !important;
+}
+
+/* Expander styling */
+.streamlit-expanderHeader {
+    background: #252525 !important;
+    color: #4ecdc4 !important;
+    border: 2px dashed #444 !important;
+    border-radius: 12px !important;
+    font-family: 'Caveat', cursive !important;
+    font-size: 1.3rem !important;
+}
+
+.streamlit-expanderContent {
+    background: #1e1e1e !important;
+    border: 2px dashed #444 !important;
+    border-radius: 0 0 12px 12px !important;
+    color: #b0b0b0 !important;
+}
+
+/* JSON styling */
+code {
+    background: #1e1e1e !important;
+    color: #4ecdc4 !important;
+    border: 2px dashed #444 !important;
+    border-radius: 12px !important;
+    padding: 1rem !important;
+    font-family: 'Courier New', monospace !important;
+}
+
+/* Labels */
+label {
+    font-family: 'Caveat', cursive !important;
+    font-size: 1.4rem !important;
+    color: #4ecdc4 !important;
+    font-weight: 600 !important;
+}
+
+/* Metadata cards */
+.metadata-card {
+    background: #252525;
+    border: 3px dashed #444;
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    margin: 0.5rem;
+}
+
+.metadata-card:hover {
+    transform: rotate(-2deg) scale(1.05);
+    border-color: #4ecdc4;
+}
+
+.metadata-label {
+    font-family: 'Kalam', cursive;
+    font-size: 0.9rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.metadata-value {
+    font-family: 'Caveat', cursive;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #4ecdc4;
+}
+
+/* Color palette */
+.palette-container {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.color-swatch {
+    flex: 1;
+    height: 80px;
+    border-radius: 12px;
+    border: 3px solid #333;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    transition: all 0.3s ease;
+}
+
+.color-swatch:hover {
+    transform: translateY(-5px) rotate(5deg);
+}
+
+/* Caption display */
+.caption-display {
+    background: #252525;
+    border: 3px dashed #444;
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    font-family: 'Kalam', cursive;
+    font-size: 1.3rem;
+    color: #b0b0b0;
+    text-align: center;
+    font-style: italic;
+    transform: rotate(-0.5deg);
+}
+
+/* Doodle decorations */
+.doodle-icon {
+    display: inline-block;
+    animation: wiggle 2s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+}
+
+/* Subtle background animation */
+@keyframes pulse {
+    0%, 100% { opacity: 0.05; }
+    50% { opacity: 0.1; }
+}
+
+.stApp::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 20% 50%, rgba(78, 205, 196, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(69, 183, 209, 0.1) 0%, transparent 50%);
+    animation: pulse 4s ease-in-out infinite;
+    pointer-events: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ──────────────────────────────
+# Header
+# ──────────────────────────────
+st.markdown("""
+<div class="main-header">
+    <div class="main-title">✏️ Dream / Memory Doodler</div>
+    <div class="main-subtitle">~ a gentle visual journaling assistant inspired by data humanism ~</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ──────────────────────────────
 # Gemini setup (safe + fallback)
@@ -86,8 +328,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     elif "reunion" in t or "childhood" in t:
         caption = "Back to where we began"
 
-    # Generate a 2-3 word summary based on the memory
-    summary = "Special day"  # You can enhance this logic based on the input
+    summary = "Special day"
     if "birthday" in t:
         summary = "Birthday memories"
     elif "friend" in t:
@@ -105,16 +346,25 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     }
 
 # ──────────────────────────────
-# UI
+# UI Layout - Two Columns
 # ──────────────────────────────
-prompt = st.text_area(
-    "Describe your memory or dream",
-    "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
-    height=120,
-)
+col1, col2 = st.columns([1, 1])
 
-date = st.text_input("Enter the date of the memory", "October 25, 2025")
-do_generate = st.button("Generate")
+with col1:
+    st.markdown('<span class="doodle-icon">🌙</span>', unsafe_allow_html=True)
+    prompt = st.text_area(
+        "Share Your Memory",
+        "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
+        height=200,
+        help="Tell me about a memory, dream, or moment you'd like to capture..."
+    )
+    
+    date = st.text_input("Date of the memory", "October 25, 2025")
+    do_generate = st.button("✨ Transform into Memory DNA ✨")
+
+with col2:
+    st.markdown('<span class="doodle-icon">🎨</span>', unsafe_allow_html=True)
+    st.markdown("**Memory DNA Output**")
 
 default_schema = {
     "emotion": "nostalgia",
@@ -159,12 +409,70 @@ def run_llm(text: str):
         return None
 
 if do_generate:
-    llm_schema = run_llm(prompt)
-    schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
+    with st.spinner("🎨 Creating your memory DNA..."):
+        llm_schema = run_llm(prompt)
+        schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
+
+# Display metadata in col2
+with col2:
+    st.json(schema)
+    
+    # Color palette
+    st.markdown("**Color Palette**")
+    st.markdown(f"""
+    <div class="palette-container">
+        <div class="color-swatch" style="background: {schema['palette'][0]};"></div>
+        <div class="color-swatch" style="background: {schema['palette'][1]};"></div>
+        <div class="color-swatch" style="background: {schema['palette'][2]};"></div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Metadata grid
+    meta_col1, meta_col2 = st.columns(2)
+    with meta_col1:
+        st.markdown(f"""
+        <div class="metadata-card">
+            <div class="metadata-label">~ emotion ~</div>
+            <div class="metadata-value">{schema['emotion']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown(f"""
+        <div class="metadata-card">
+            <div class="metadata-label">~ nodes ~</div>
+            <div class="metadata-value">{schema['nodes']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with meta_col2:
+        st.markdown(f"""
+        <div class="metadata-card">
+            <div class="metadata-label">~ intensity ~</div>
+            <div class="metadata-value">{schema['intensity']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        complexity = "low" if schema['nodes'] < 7 else "medium" if schema['nodes'] < 14 else "high"
+        st.markdown(f"""
+        <div class="metadata-card">
+            <div class="metadata-label">~ complexity ~</div>
+            <div class="metadata-value">{complexity}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Caption
+    st.markdown(f"""
+    <div class="caption-display">
+        "{date} — {schema['caption']}"
+    </div>
+    """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# p5.js visualization (no 'key'; force remount via schema hash in DOM)
+# p5.js visualization
 # ──────────────────────────────
+st.markdown("---")
+st.markdown("### 🎨 Your Memory Doodle")
+
 schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
 schema_js = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
 
@@ -175,27 +483,32 @@ p5_html = f"""
 <meta charset='utf-8'>
 <meta name='x-schema-hash' content='{schema_hash}'>
 <style>
-html,body {{margin:0;padding:0;background:#faf7f5;}}
+html,body {{margin:0;padding:0;background:#1a1a1a;}}
 #wrap {{position:relative;width:900px;margin:0 auto;}}
 #btnsave {{
   position:absolute;top:12px;right:12px;z-index:10;
-  padding:8px 12px;border:1px solid #d9cbb9;border-radius:8px;background:#fff;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;cursor:pointer;
+  padding:10px 16px;border:3px solid #4ecdc4;border-radius:12px;
+  background:linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%);
+  color:#1a1a1a;font-family:'Caveat',cursive;font-size:1.2rem;font-weight:700;
+  cursor:pointer;box-shadow:3px 3px 0px #333;transition:all 0.3s ease;
+}}
+#btnsave:hover {{
+  transform:translate(-2px,-2px);box-shadow:5px 5px 0px #333;
 }}
 #caption {{
-  position:absolute;bottom:10px;right:16px;color:rgba(70,60,65,0.85);font-size:18px;
-  font-family:Georgia,serif;pointer-events:none;text-shadow:0 1px 0 rgba(255,255,255,0.4);
+  position:absolute;bottom:10px;right:16px;color:rgba(240,240,240,0.9);font-size:18px;
+  font-family:'Kalam',cursive;pointer-events:none;text-shadow:2px 2px 4px rgba(0,0,0,0.8);
 }}
 #summary {{
-  position:absolute;bottom:35px;right:16px;color:rgba(70,60,65,0.85);font-size:14px;
-  font-family:Georgia,serif;text-shadow:0 1px 0 rgba(255,255,255,0.4);
+  position:absolute;bottom:35px;right:16px;color:rgba(78,205,196,0.9);font-size:14px;
+  font-family:'Kalam',cursive;text-shadow:2px 2px 4px rgba(0,0,0,0.8);
 }}
-canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
+canvas {{border-radius:15px;box-shadow:0 10px 40px rgba(0,0,0,0.8);border:3px dashed #333;}}
 </style>
 </head>
 <body>
 <div id='wrap' data-schema-hash='{schema_hash}'>
-  <button id='btnsave' onclick='savePNG()'>Download PNG</button>
+  <button id='btnsave' onclick='savePNG()'>💾 Download PNG</button>
   <div id='p5mount'></div>
   <div id='caption'>{date} — {schema['caption']}</div>
   <div id='summary'>{schema['summary']}</div>
@@ -309,20 +622,17 @@ function savePNG(){{
 </html>
 """
 
-# Render (no 'key' argument)
+# Render canvas
 try:
-    components_html("<div style='padding:6px;font:14px system-ui'>Loading canvas…</div>", height=40, scrolling=False)
     components_html(p5_html, height=980, scrolling=False)
 except Exception as e:
-    st.error("⚠️ Failed to render p5.js canvas. See details below.")
+    st.error("⚠️ Failed to render p5.js canvas.")
     st.exception(e)
-    st.write("schema:", schema)
-    st.write("p5_html length:", len(p5_html))
-    st.code(p5_html[:600], language="html")
 
-# Debug
-with st.expander("Gemini debug"):
-    st.write("Chosen model:", chosen_model)
+# Debug expander
+with st.expander("🔧 Debug Info"):
+    st.write("**Chosen model:**", chosen_model)
     if available_models:
         st.json(available_models)
+    st.write("**Current schema:**")
     st.json(schema)
