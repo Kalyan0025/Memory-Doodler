@@ -8,7 +8,7 @@ import datetime
 # ──────────────────────────────
 load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
-st.title("🌙 Dream / Memory Doodler (Streamlit + Gemini + p5.js)")
+st.title("🌙 Dream / Memory Doodler")
 
 # ──────────────────────────────
 # 2️⃣ Gemini setup (safe + fallback)
@@ -110,7 +110,6 @@ prompt = st.text_area(
     height=120,
 )
 
-# Convert string to datetime.date object
 date_value = datetime.date(2025, 10, 26)
 
 date = st.date_input(
@@ -308,11 +307,3 @@ function drawGlow(p,x,y,radius,col) {{
 </html>
 """
 st.components.v1.html(p5_html, height=980, scrolling=False)
-
-# ──────────────────────────────
-# 8️⃣ Debug info
-# ──────────────────────────────
-with st.expander("Gemini debug"):
-    st.write("Chosen model:", chosen_model)
-    if available_models:
-        st.json(available_models)
