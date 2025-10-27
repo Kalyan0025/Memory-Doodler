@@ -12,21 +12,36 @@ def get_api_key():
 # Function to generate image using the Gemini API
 def generate_image(prompt):
     api_key = get_api_key()
+
+    # Check if the API key is correctly loaded
+    if not api_key:
+        st.error("API key is missing or incorrect!")
+        return None
+
     url = "https://api.gemini.com/v1/generate"  # Replace with correct Gemini API URL
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
+
     data = {
         "prompt": prompt,
         "n": 1,
         "size": "1024x1024"  # Or the size you prefer
     }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        return response.json()['data'][0]['url']
-    else:
-        st.error("Error generating image!")
+
+    try:
+        # Send the POST request to Gemini API
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()  # Raises an error for 4xx/5xx responses
+
+        if response.status_code == 200:
+            return response.json()['data'][0]['url']
+        else:
+            st.error(f"Error: {response.status_code} - {response.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error making request: {e}")
         return None
 
 # Streamlit front-end
