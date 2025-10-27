@@ -253,35 +253,36 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# UI Layout - Two Columns
+# Gemini setup (safe + fallback)
 # ──────────────────────────────
-col1, col2 = st.columns([1, 1])
+USE_GEMINI = True
+try:
+    import google.generativeai as genai
+except Exception:
+    USE_GEMINI = False
 
-with col1:
-    st.markdown('<span class="doodle-icon">🌙</span>', unsafe_allow_html=True)
-    prompt = st.text_area(
-        "Share Your Memory",
-        "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
-        height=200,
-        help="Tell me about a memory, dream, or moment you'd like to capture..."
-    )
-    
-    date = st.text_input("Date of the memory", "October 25, 2025")
-    do_generate = st.button("✨ Transform into Memory DNA ✨")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+PREF_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
 
-with col2:
-    st.markdown('<span class="doodle-icon">🎨</span>', unsafe_allow_html=True)
-    st.markdown("**Memory DNA Output**")
-
-default_schema = {
-    "emotion": "nostalgia",
-    "intensity": 0.8,
-    "palette": ["#F79892", "#FFD482", "#C0A5D7"],
-    "nodes": 10,
-    "caption": "October 25 — Old friends, new laughter",
-    "summary": "Special day",
-}
-schema = default_schema.copy()
+available_models, chosen_model = [], None
+if USE_GEMINI and GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        for m in genai.list_models():
+            if "generateContent" in getattr(m, "supported_generation_methods", []):
+                if "flash" in m.name and "exp" not in m.name:
+                    available_models.append(m.name)
+        for c in (PREF_MODEL, f"models/{PREF_MODEL}"):
+            if c in available_models:
+                chosen_model = c
+                break
+        if not chosen_model and available_models:
+            chosen_model = available_models[0]
+    except Exception as e:
+        st.warning(f"Model listing failed; fallback. ({e})")
+        chosen_model = None
+else:
+    chosen_model = None
 
 # ──────────────────────────────
 # Local fallback schema generator
@@ -345,6 +346,37 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     }
 
 # ──────────────────────────────
+# UI Layout - Two Columns
+# ──────────────────────────────
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.markdown('<span class="doodle-icon">🌙</span>', unsafe_allow_html=True)
+    prompt = st.text_area(
+        "Share Your Memory",
+        "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
+        height=200,
+        help="Tell me about a memory, dream, or moment you'd like to capture..."
+    )
+    
+    date = st.text_input("Date of the memory", "October 25, 2025")
+    do_generate = st.button("✨ Transform into Memory DNA ✨")
+
+with col2:
+    st.markdown('<span class="doodle-icon">🎨</span>', unsafe_allow_html=True)
+    st.markdown("**Memory DNA Output**")
+
+default_schema = {
+    "emotion": "nostalgia",
+    "intensity": 0.8,
+    "palette": ["#F79892", "#FFD482", "#C0A5D7"],
+    "nodes": 10,
+    "caption": "October 25 — Old friends, new laughter",
+    "summary": "Special day",
+}
+schema = default_schema.copy()
+
+# ──────────────────────────────
 # Gemini call + fallback
 # ──────────────────────────────
 def run_llm(text: str):
@@ -384,6 +416,16 @@ if do_generate:
 # Display metadata in col2
 with col2:
     st.json(schema)
+    
+    # Color palette
+    st.markdown("**Color Palette**")
+    st.markdown(f"""
+    <div class="palette-container">
+        <div class="color-swatch" style="background: {schema['palette'][0]};"></div>
+        <div class="color-swatch" style="background: {schema['palette'][1]};"></div>
+        <div class="color-swatch" style="background: {schema['palette'][2]};"></div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Metadata grid
     meta_col1, meta_col2 = st.columns(2)
@@ -586,3 +628,11 @@ try:
 except Exception as e:
     st.error("⚠️ Failed to render p5.js canvas.")
     st.exception(e)
+
+# Debug expander
+with st.expander("🔧 Debug Info"):
+    st.write("**Chosen model:**", chosen_model)
+    if available_models:
+        st.json(available_models)
+    st.write("**Current schema:**")
+    st.json(schema)
