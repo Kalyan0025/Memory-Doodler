@@ -1,16 +1,10 @@
-# app.py
-# Visual Memory — p5.js on canvas (smoke-like silhouettes × data-humanism)
-# No external APIs or billing. Works locally or on Streamlit Cloud.
-
 import re, math, hashlib, json, streamlit as st
 from streamlit.components.v1 import html as components_html
 
 st.set_page_config(page_title="Visual Memory — Canvas", page_icon="🌀", layout="centered")
 st.title("🌀 Visual Memory (smoke silhouettes × data-humanism) — Canvas")
 
-# ──────────────────────────────────────
-# 1) INPUTS
-# ──────────────────────────────────────
+# ───────────── INPUTS ─────────────
 story = st.text_area(
     "Whisper your memory (a few sentences work best)",
     "Yesterday was my birthday. I met childhood friends after years; we laughed, took photos, and shared cake.",
@@ -26,9 +20,7 @@ with col3:
 
 go = st.button("Generate")
 
-# ──────────────────────────────────────
-# 2) TEXT → FEATURES
-# ──────────────────────────────────────
+# ───────────── TEXT FEATURES ─────────────
 t = story.strip()
 seed_text = (t + f"|{motion:.2f}|{smoke:.2f}|{brightness:.2f}") or "empty"
 seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % (2**31 - 1)
@@ -89,53 +81,53 @@ schema = {
     "symbol": symbol,
     "story": t
 }
-
 SCHEMA_JS = json.dumps(schema, ensure_ascii=True, separators=(",",":"))
 
-# ──────────────────────────────────────
-# 3) p5.js + HTML
-# ──────────────────────────────────────
+# ───────────── p5.js EMBED ─────────────
 p5_html = f"""
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8"/>
+<meta charset='utf-8'/>
 <style>
   html,body {{ margin:0; padding:0; background:#0b0b0d; }}
-  #card {{
-    width:980px; height:980px; margin:24px auto; position:relative; overflow:hidden;
-    background:#0f0f12; border-radius:28px; box-shadow:0 16px 40px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.2);
-  }}
-  #chrome {{
-    position:absolute; top:0; left:0; right:0; height:64px; display:flex; align-items:center; gap:10px; padding:0 18px;
-    color:#e8e6e3; font:13px system-ui; background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
-    border-top-left-radius:28px; border-top-right-radius:28px;
-  }}
+  #card {{ width:980px; height:980px; margin:24px auto; position:relative;
+          overflow:hidden; background:#0f0f12; border-radius:28px;
+          box-shadow:0 16px 40px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.2); }}
+  #chrome {{ position:absolute; top:0; left:0; right:0; height:64px;
+             display:flex; align-items:center; gap:10px; padding:0 18px;
+             color:#e8e6e3; font:13px system-ui;
+             background:linear-gradient(180deg, rgba(255,255,255,.08),
+             rgba(255,255,255,.02)); border-top-left-radius:28px;
+             border-top-right-radius:28px; }}
   .dot {{ width:7px; height:7px; border-radius:50%; background:#4a4a50; }}
   #p5mount {{ position:absolute; top:64px; left:0; right:0; bottom:56px; }}
-  #footer {{
-    position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; align-items:center; justify-content:space-between;
-    padding:0 16px; color:#c8c6c3; font:11px system-ui; background:linear-gradient(0deg, rgba(255,255,255,.06), rgba(255,255,255,0));
-    border-bottom-left-radius:28px; border-bottom-right-radius:28px;
-  }}
-  #btnsave {{ margin-left:auto; padding:6px 10px; border:1px solid #3a3a40; border-radius:8px; background:#15151a; color:#ddd; cursor:pointer; }}
+  #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px;
+             display:flex; align-items:center; justify-content:space-between;
+             padding:0 16px; color:#c8c6c3; font:11px system-ui;
+             background:linear-gradient(0deg, rgba(255,255,255,.06),
+             rgba(255,255,255,0)); border-bottom-left-radius:28px;
+             border-bottom-right-radius:28px; }}
+  #btnsave {{ margin-left:auto; padding:6px 10px;
+              border:1px solid #3a3a40; border-radius:8px;
+              background:#15151a; color:#ddd; cursor:pointer; }}
 </style>
 </head>
 <body>
-<div id="card">
-  <div id="chrome">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+<div id='card'>
+  <div id='chrome'>
+    <div class='dot'></div><div class='dot'></div><div class='dot'></div>
     <div><b>Visual Memory</b> — canvas</div>
-    <button id="btnsave" onclick="savePNG()">Save PNG</button>
+    <button id='btnsave' onclick='savePNG()'>Save PNG</button>
   </div>
-  <div id="p5mount"></div>
-  <div id="footer">
-    <div id="metaLeft"></div>
-    <div id="metaRight"></div>
+  <div id='p5mount'></div>
+  <div id='footer'>
+    <div id='metaLeft'></div>
+    <div id='metaRight'></div>
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js'></script>
 <script>
 const S = {SCHEMA_JS};
 
@@ -151,45 +143,41 @@ function savePNG() {{
 document.getElementById('metaLeft').textContent  = (S.story||'').slice(0,92);
 document.getElementById('metaRight').textContent = `seed:${{S.seed}} • v:${{S.valence}} a:${{S.arousal}} s:${{S.social}}`;
 
-// Minimal example: background + glow + fragments
-new p5((p)=>{
+new p5((p)=>{{
   const [BG, P1, P2] = (S.palette||["#121215","#E3DCD2","#C8D8C6"]).map(h=>p.color(h));
-  p.setup = () => {{
+  p.setup = ()=>{{
     p.createCanvas(980,980).parent(document.getElementById('p5mount'));
     p.noLoop();
   }};
-  p.draw = () => {{
+  p.draw = ()=>{{
     p.background(BG);
-    const cx = 490, cy = 490;
-    // radial glow
+    const cx=490, cy=490;
     for(let r=400;r>0;r-=4){{
-      const col = p.lerpColor(P1,P2,r/400);
+      const col=p.lerpColor(P1,P2,r/400);
       p.noStroke(); p.fill(p.red(col),p.green(col),p.blue(col),8);
       p.circle(cx,cy,r*2);
     }}
-    // floating fragments
     p.textAlign(p.CENTER,p.CENTER);
     p.textSize(20);
     p.fill(240,220,210,180);
     const words=S.fragments||[];
     for(let i=0;i<words.length;i++){{
-      const a=i/p.TWO_PI*360;
+      const a=i*0.6283;
       const x=cx+Math.cos(a)*p.random(200,300);
       const y=cy+Math.sin(a)*p.random(200,300);
       p.text(words[i],x,y);
     }}
   }};
-});
+}});
 </script>
 </body>
 </html>
 """
 
-# ──────────────────────────────────────
-# 4) RENDER
-# ──────────────────────────────────────
+# ───────────── RENDER ─────────────
 if go:
     components_html(p5_html, height=1060, scrolling=False)
 else:
-    st.info("Type your memory and click **Generate**. The canvas renders smoke-like silhouettes with subtle data-humanism layers.\n\n"
-            "Birthday memories automatically replace the circle with a glowing cake. Deterministic by default; raise Motion for gentle animation.")
+    st.info("Type your memory and click **Generate**. The canvas renders smoke-like silhouettes "
+            "with subtle data-humanism aesthetics. Birthday memories automatically use a glowing cake. "
+            "Deterministic output — raise Motion for gentle animation.")
