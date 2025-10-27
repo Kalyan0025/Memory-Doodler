@@ -3,41 +3,39 @@ import re, json, hashlib, math
 import streamlit as st
 from streamlit.components.v1 import html as components_html
 
-st.set_page_config(page_title="Visual Memory — ReCollection-inspired", page_icon="🌀", layout="centered")
-st.title("🌀 Visual Memory (ReCollection-inspired)")
+st.set_page_config(page_title="Visual Memory — ReCollection Silhouettes", page_icon="🌀", layout="centered")
+st.title("🌀 Visual Memory (ReCollection × Data Humanism)")
 
 # ──────────────────────────────────────
-# 1) INPUT: story only
+# 1) Inputs
 # ──────────────────────────────────────
 story = st.text_area(
     "Whisper your memory (a few sentences work best)",
     "Yesterday was my birthday. I met childhood friends after years; we laughed, took photos, and shared cake.",
     height=140,
 )
+motion = st.slider("Motion (0 = still)", 0.0, 1.0, 0.0, 0.05)
 go = st.button("Generate")
 
 # ──────────────────────────────────────
-# 2) Text → schema with expressive axes
+# 2) Text → features
 # ──────────────────────────────────────
 t = story.strip()
-seed_text = t if t else "empty"
+seed_text = (t + str(motion)).strip() or "empty"
 seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % 10**9
 tl = t.lower()
 
-# Simple lexicons (no external deps)
-L_POS = ["joy","happy","happiness","love","laugh","laughs","laughed","smile","smiled","proud","grateful","peace","serene","calm","relief","beautiful","celebrate","birthday","friends","together","hug","kiss","wedding","success","win"]
-L_NEG = ["sad","cry","cried","alone","lonely","fear","anxious","anxiety","stress","angry","regret","loss","lost","breakup","hurt","pain","miss","funeral","argument","fight","tired"]
-L_HIGH = ["ecstatic","thrill","rush","party","dance","sprint","screamed","wild","storm","fireworks","concert","crowd","festival","goal","race","rollercoaster","adrenaline"]
+# tiny lexicons
+L_POS = ["joy","happy","happiness","love","laugh","smile","proud","grateful","peace","serene","calm","relief","beautiful","celebrate","birthday","together","hug","kiss","wedding","success","win"]
+L_NEG = ["sad","cry","alone","lonely","fear","anxious","anxiety","stress","angry","regret","loss","lost","breakup","hurt","pain","miss","funeral","argument","fight","tired"]
+L_HIGH = ["ecstatic","thrill","rush","party","dance","screamed","wild","storm","fireworks","concert","crowd","festival","goal","race","rollercoaster","adrenaline"]
 L_LOW  = ["quiet","still","slow","breeze","gentle","soft","silent","night","dawn","sunset","walk","beach","library","rain","reading","meditate","tea","coffee"]
 L_SOC  = ["friends","family","together","team","we","us","crowd","group","party","colleagues","classmates","reunion","gathering"]
-L_NOST = ["yesterday","childhood","years ago","old","remember","memory","memories","reminisce","nostalgia","nostalgic","school","college","grandma","grandfather","album","photo","photos","vintage"]
+L_NOST = ["yesterday","childhood","years ago","remember","memory","memories","reminisce","nostalgia","nostalgic","school","college","grandma","grandfather","album","photo","photos","vintage"]
 
-def score(words):
-    # cheap token presence; weights duplicate hits mildly
-    return sum(2 if f" {w} " in f" {tl} " else 0 for w in words)
-
-val_raw = score(L_POS) - score(L_NEG)      # >0 = positive
-aro_raw = score(L_HIGH) - score(L_LOW)     # >0 = energetic
+def score(words): return sum(2 if f" {w} " in f" {tl} " else 0 for w in words)
+val_raw = score(L_POS) - score(L_NEG)
+aro_raw = score(L_HIGH) - score(L_LOW)
 soc_raw = score(L_SOC)
 nos_raw = score(L_NOST)
 
@@ -47,21 +45,21 @@ arousal   = max(0.0, min(1.0, sig(aro_raw)))
 social    = max(0.0, min(1.0, sig(soc_raw)))
 nostalgia = max(0.0, min(1.0, sig(nos_raw)))
 
-# Palettes keyed by valence/arousal/nostalgia
-if valence > 0.25 and arousal >= 0.5:
-    palette = ["#FFD482", "#F79892", "#C0A5D7"]                 # joyful-vibrant
-elif valence > 0.25 and arousal < 0.5:
-    palette = ["#FBE8C7", "#CFE8FF", "#C7D3E1"]                 # gentle-warm
-elif valence < -0.25 and nostalgia > 0.5:
-    palette = ["#E7D7C9", "#CDB4DB", "#A3A3B3"]                 # bittersweet
-elif valence < -0.25:
-    palette = ["#B0B7C3", "#8EA6B4", "#6B7685"]                 # cool-muted
+# base palettes (emotion → wash). Silhouette is monochrome filmic; colors glaze on top.
+if valence > 0.3 and arousal >= 0.55:
+    palette = ["#EFF1F5", "#FFD482", "#F79892"]                 # bright joy
+elif valence > 0.3:
+    palette = ["#EFF1F5", "#FBE8C7", "#CFE8FF"]                 # gentle warm
+elif valence < -0.3 and nostalgia > 0.5:
+    palette = ["#EDEDED", "#CDB4DB", "#A3A3B3"]                 # bittersweet violet
+elif valence < -0.3:
+    palette = ["#EDEDED", "#B0B7C3", "#6B7685"]                 # cool muted
 elif nostalgia > 0.5:
-    palette = ["#F7C6B3", "#EBD8C3", "#C0A5D7"]                 # nostalgic
+    palette = ["#EFEAE6", "#F7C6B3", "#C0A5D7"]                 # sepia nostalgia
 else:
-    palette = ["#D8E3E7", "#F0E6EF", "#C7D9C4"]                 # neutral-soft
+    palette = ["#F0F0F0", "#D8E3E7", "#C7D9C4"]                 # neutral-soft
 
-# Keywords/fragments
+# fragments
 stop = set("""a an the and or of for to from is are was were be being been this that those these i me my we our you your he she they them his her their in on at by with without into out about over under after before again more most such very just not no yes as it's it's""".split())
 tokens = re.findall(r"[A-Za-z]{3,}", t)
 salient = [w for w in tokens if w.lower() not in stop]
@@ -74,39 +72,34 @@ for w in salient:
 if not keywords:
     keywords = ["memory","moment","trace","echo","warmth","smile"]
 
-# Visual knobs (deterministic from text)
-plate_count   = int(3 + round(2 + 3*arousal + 2*nostalgia))         # 5–10
-band_count    = int(4 + round(2 + 4*arousal))                       # 6–10
-grain_density = int(5000 + 9000*nostalgia)                          # 5k–14k
-tilt_range    = 0.10 + 0.35*arousal                                 # 0.1–0.45 rad
-noise_amp     = 0.15 + 0.35*arousal                                 # slitscan wobble
-kernel_mode   = "burst" if arousal>0.65 else ("ring" if nostalgia>0.6 else "disc")
-text_ring     = "dense" if social>0.6 else "sparse"
+# knobs
+grain_density = int(6000 + 10000*nostalgia)
+bands  = int(5 + round(4 + 3*arousal))
+tilt   = 0.12 + 0.3*arousal
+kernel = "ring" if nostalgia>0.6 else ("burst" if arousal>0.65 else "disc")
+text_density = "dense" if social>0.6 else "sparse"
+scene_mode = "group" if social>0.45 else "portrait"  # choose silhouette composition
 
 schema = {
     "seed": seed,
     "palette": palette,
-    "caption": "Visual Memory",
-    "subtitle": "data-humanism × recollection",
-    "fragments": keywords,
     "story": t,
-    # expressive axes
+    "fragments": keywords,
     "valence": round(valence,3),
     "arousal": round(arousal,3),
     "social": round(social,3),
     "nostalgia": round(nostalgia,3),
-    # knobs
-    "plates": plate_count,
-    "bands": band_count,
     "grain": grain_density,
-    "tilt": tilt_range,
-    "noiseAmp": noise_amp,
-    "kernelMode": kernel_mode,
-    "textRing": text_ring
+    "bands": bands,
+    "tilt": tilt,
+    "kernel": kernel,
+    "textDensity": text_density,
+    "scene": scene_mode,
+    "motion": float(motion),
 }
 
 # ──────────────────────────────────────
-# 3) p5.js page template
+# 3) p5 template (silhouette spray + card)
 # ──────────────────────────────────────
 SCHEMA_JS = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
 schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
@@ -118,36 +111,36 @@ p5_template = r"""
 <meta charset="utf-8"/>
 <meta name="x-schema-hash" content="__HASH__"/>
 <style>
-  html,body { margin:0; padding:0; background:#0f1115; }
+  html,body { margin:0; padding:0; background:#0b0b0d; }
   #card {
     width: 980px; height: 980px; margin: 24px auto;
-    background: #faf7f5;
+    background: #0f0f12; /* dark theater */
     border-radius: 28px;
-    box-shadow: 0 16px 40px rgba(0,0,0,0.20), 0 2px 10px rgba(0,0,0,0.08);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 2px 10px rgba(0,0,0,0.2);
     position: relative; overflow: hidden;
   }
   #chrome {
-    position:absolute; top:0; left:0; right:0; height: 68px;
-    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.60));
+    position:absolute; top:0; left:0; right:0; height: 64px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
     border-top-left-radius: 28px; border-top-right-radius: 28px;
     display:flex; align-items:center; gap:10px; padding:0 18px;
-    color:#5b524a; font: 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color:#e8e6e3; font: 13px/1.2 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
   }
-  .dot { width:10px; height:10px; border-radius:50%; background:#e6d7c6; }
-  #title { font-weight:600; letter-spacing:.2px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:#4a4a50; }
+  #title { font-weight:600; letter-spacing:.3px; }
   #subtitle { opacity:.65; margin-left:6px; }
-  #p5mount { position:absolute; top:68px; left:0; right:0; bottom:64px; }
+  #p5mount { position:absolute; top:64px; left:0; right:0; bottom:56px; }
   #footer {
-    position:absolute; left:0; right:0; bottom:0; height:64px;
+    position:absolute; left:0; right:0; bottom:0; height:56px;
     display:flex; align-items:center; justify-content:space-between;
-    padding:0 16px; color:#6a5e55; font: 12px system-ui;
-    background: linear-gradient(0deg, rgba(255,255,255,0.94), rgba(255,255,255,0));
+    padding:0 16px; color:#c8c6c3; font: 11px system-ui;
+    background: linear-gradient(0deg, rgba(255,255,255,0.06), rgba(255,255,255,0));
     border-bottom-left-radius: 28px; border-bottom-right-radius: 28px;
   }
   #btnsave {
     margin-left:auto;
-    padding:6px 10px; border:1px solid #e6d9c8; border-radius:8px; background:#fff; cursor:pointer;
-    font:12px system-ui; color:#5c5047;
+    padding:6px 10px; border:1px solid #3a3a40; border-radius:8px; background:#15151a; cursor:pointer;
+    font:12px system-ui; color:#ddd;
   }
 </style>
 </head>
@@ -155,7 +148,7 @@ p5_template = r"""
 <div id="card">
   <div id="chrome">
     <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    <div id="title">__CAPTION__</div><div id="subtitle">— __SUBTITLE__</div>
+    <div id="title">Visual Memory</div><div id="subtitle">— ReCollection silhouettes</div>
     <button id="btnsave" onclick="savePNG()">Save PNG</button>
   </div>
   <div id="p5mount"></div>
@@ -164,191 +157,217 @@ p5_template = r"""
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
 <script>
-const SCHEMA = __SCHEMA__;
+const S = __SCHEMA__;
 
 function savePNG(){
   const c=document.querySelector('canvas'); if(!c) return;
   const a=document.createElement('a'); a.download='visual_memory.png'; a.href=c.toDataURL('image/png'); a.click();
 }
-
-document.getElementById('title').textContent = SCHEMA.caption || 'Memory';
-document.getElementById('subtitle').textContent = SCHEMA.subtitle || '';
-document.getElementById('metaLeft').textContent  = (SCHEMA.story||'').slice(0,80);
-document.getElementById('metaRight').textContent = `seed:${SCHEMA.seed} · v:${SCHEMA.valence} a:${SCHEMA.arousal}`;
+document.getElementById('metaLeft').textContent  = (S.story||'').slice(0,90);
+document.getElementById('metaRight').textContent = `seed:${S.seed} · v:${S.valence} a:${S.arousal} s:${S.social}`;
 
 new p5((p)=>{
   const W=980, H=980;
-  const inner = {x:0, y:68, w:W, h:H-68-64};
-  const [A,B,C] = (SCHEMA.palette||["#DDD","#AAA","#888"]).map(h=>p.color(h));
-  const seed = SCHEMA.seed||1;
-  p.randomSeed(seed); p.noiseSeed(seed);
+  const inner = {x:0, y:64, w:W, h:H-64-56};
+  const [P0,P1,P2] = (S.palette||["#F0F0F0","#CCCCCC","#AAAAAA"]).map(h=>p.color(h));
+  const MOTION = S.motion||0;
+  p.randomSeed(S.seed||1); p.noiseSeed(S.seed||1);
 
-  const PLATES = SCHEMA.plates||7;
-  const BANDS  = SCHEMA.bands||7;
-  const GRAIN  = SCHEMA.grain||9000;
-  const TILT   = SCHEMA.tilt||0.25;
-  const NOISEA = SCHEMA.noiseAmp||0.3;
-  const KM     = SCHEMA.kernelMode||"disc";
-  const TRING  = SCHEMA.textRing||"sparse";
-  const VAL    = SCHEMA.valence||0;
-  const ARO    = SCHEMA.arousal||0;
-  const NOS    = SCHEMA.nostalgia||0;
-  const SOC    = SCHEMA.social||0;
+  // Precompute deterministic points for spray / grain to avoid flicker
+  function deterSeries(n, a=997, b=1493){ const out=[]; for(let i=0;i<n;i++){ out.push([(i%a)/a, ((i*37)%b)/b]); } return out; }
 
-  function bgEditorial(){
+  // ——— Background film plate (monochrome) + color glaze
+  function bg(){
+    p.noStroke();
+    // dark plate
+    p.fill(12,12,16);
+    p.rect(inner.x, inner.y, inner.w, inner.h);
+    // editorial glaze
     for(let y=inner.y; y<inner.y+inner.h; y++){
       const t=(y-inner.y)/(inner.h);
-      const cc=p.lerpColor(A,B, t*0.9 + 0.05);
-      p.stroke(cc); p.line(inner.x, y, inner.x+inner.w, y);
+      const c = p.lerpColor(p.color(12,12,16), p.color(24,24,30), t);
+      p.stroke(c); p.line(inner.x, y, inner.x+inner.w, y);
     }
+    // emotion color wash (screen)
+    p.push(); p.blendMode(p.SCREEN);
+    const wash = p.lerpColor(P1,P2, 0.45+0.3*S.arousal);
+    for(let y=inner.y; y<inner.y+inner.h; y+=2){
+      p.stroke(p.red(wash),p.green(wash),p.blue(wash), 12 + 30*Math.max(0,S.valence));
+      p.line(inner.x, y, inner.x+inner.w, y);
+    }
+    p.pop();
+
     // paper grain
+    const G = S.grain||9000; const pts = deterSeries(G);
     p.push(); p.noStroke(); p.blendMode(p.MULTIPLY);
-    for(let i=0;i<GRAIN;i++){
-      const x=p.random(inner.x, inner.x+inner.w);
-      const y=p.random(inner.y, inner.y+inner.h);
-      p.fill(0,0,0, p.random(3, 6+NOS*6));
-      p.circle(x,y,p.random(0.6,1.4+NOS*0.6));
+    for(let i=0;i<G;i++){
+      const x = inner.x + pts[i][0]*inner.w;
+      const y = inner.y + pts[i][1]*inner.h;
+      p.fill(255,255,255, 6); // subtle speckle on dark
+      p.circle(x,y, 0.6 + (i%17)/17 * 1.6);
     }
     p.pop();
   }
 
-  function monotypePlates(){
-    p.push(); p.blendMode(p.MULTIPLY);
-    for(let i=0;i<PLATES;i++){
-      const cx = inner.x + inner.w* (0.18 + 0.64*p.random());
-      const cy = inner.y + inner.h* (0.18 + 0.64*p.random());
-      const baseR = Math.min(inner.w,inner.h) * p.random(0.10 + 0.06*ARO, 0.22 + 0.1*ARO);
-      const colr = [A,B,C][i%3];
-      const rot = p.random(-TILT, TILT) * (VAL< -0.25 ? 1.2 : 1);
-      p.push();
-      p.translate(cx,cy); p.rotate(rot);
-      const layers = 2 + Math.round(1 + 2*NOS);
-      for(let k=0;k<layers;k++){
-        p.noStroke();
-        const alpha = 120 - k*28 + NOS*15;
-        p.fill(p.red(colr),p.green(colr),p.blue(colr), alpha);
-        p.beginShape();
-        const n = 14 + Math.round(ARO*8);
-        for(let a=0;a<n;a++){
-          const t=a/n*p.TWO_PI;
-          const r = baseR * (0.85 + 0.22*p.noise(i*10 + a*0.7 + p.frameCount*0.0004*(0.2+ARO)));
-          p.vertex(r*Math.cos(t), r*Math.sin(t));
-        }
-        p.endShape(p.CLOSE);
+  // ——— Human-like silhouettes (portrait or group), spray + erosion
+  // Built from primitive “head+shoulder” blobs; edges eroded with Worley-ish noise.
+  function silhouetteLayer(){
+    p.push(); p.blendMode(p.SCREEN);
+    const baseAlpha = 205; // brightness of “memory dust”
+    const actors = (S.scene === "group") ? (5 + Math.round(7*S.social)) : 1;
+
+    // Layout anchors
+    const anchors = [];
+    if (S.scene === "group"){
+      // Curve across mid-lower canvas
+      const yBase = inner.y + inner.h*0.62;
+      for(let i=0;i<actors;i++){
+        const t = (i+0.5)/actors;
+        const x = inner.x + inner.w*(0.12 + 0.76*t + 0.02*p.noise(i*0.7));
+        const y = yBase - 60*Math.sin(t*Math.PI) + 28*p.noise(100+i);
+        const scale = 0.9 + 0.6*p.noise(200+i);
+        anchors.push({x,y,scale});
       }
-      const dots = 80 + Math.round(120*NOS);
-      for(let d=0; d<dots; d++){
-        const rx = p.random(-baseR, baseR), ry = p.random(-baseR, baseR);
-        if (p.dist(rx,ry,0,0) < baseR*1.02){
-          p.noStroke(); p.fill(30,20,10, 16 + NOS*14);
-          p.circle(rx,ry,p.random(1,2.4 + ARO*0.6));
+    }else{
+      // Single off-center portrait
+      const x = inner.x + inner.w*(0.42 + 0.18*p.noise(11));
+      const y = inner.y + inner.h*(0.48 + 0.06*p.noise(22));
+      anchors.push({x,y,scale:1.2+0.4*S.arousal});
+    }
+
+    // Spray painter using deterministic jitter
+    const sprayPts = 9000 + Math.floor(8000*S.arousal) + Math.floor(7000*S.nostalgia);
+    const jitter = deterSeries(sprayPts, 1997, 1789);
+
+    for(const a of anchors){
+      const headR = 44*a.scale;
+      const shoulderW = 120*a.scale, shoulderH = 60*a.scale;
+
+      for(let i=0;i<sprayPts;i++){
+        const jx = (jitter[i][0]-0.5), jy = (jitter[i][1]-0.5);
+        // sample radial region around head/shoulder
+        const rx = a.x + jx*(shoulderW*2.2);
+        const ry = a.y + jy*(headR*3.0);
+
+        // shape mask: head circle + shoulder ellipse (soft union)
+        const dHead = p.dist(rx,ry, a.x, a.y-headR*0.6) / headR;
+        const dSh   = Math.hypot((rx-a.x)/(shoulderW*0.7), (ry-(a.y+shoulderH*0.1))/(shoulderH*0.75));
+        let inside = (dHead<1.1) || (dSh<1.0);
+
+        if (inside){
+          // edge erosion via Worley-ish noise (gives grainy dissolving edges)
+          const nx = 0.006*rx, ny=0.006*ry;
+          const n1 = p.noise(nx,ny), n2 = p.noise(nx*2.1,ny*2.1+13);
+          const erode = (n1*0.6 + n2*0.4);
+          const edge  = Math.min(Math.abs(dHead-1.0), Math.abs(dSh-1.0));
+          if (erode < 0.35 + 0.55*edge){ // drop some dots near edges
+            const a255 = baseAlpha * (0.55 + 0.35*S.nostalgia);
+            p.noStroke(); p.fill(235,235,245, a255 * (0.35 + 0.65*erode));
+            p.circle(rx,ry, 1.0 + 2.6*(1-erode) + 0.8*S.arousal);
+          }
         }
       }
-      p.pop();
     }
     p.pop();
   }
 
-  function slitscanBands(){
+  // ——— Scan bands (Data Humanism)
+  function bands(){
     p.push();
-    for(let b=0;b<BANDS;b++){
-      const baseY = inner.y + inner.h*(0.12 + 0.76*(b+0.5)/BANDS);
-      const thick = 6 + 10*ARO*p.noise(b*0.4 + p.frameCount*0.002*(0.2+ARO));
-      const cc = p.lerpColor(B,C, b/BANDS);
-      p.stroke(p.red(cc),p.green(cc),p.blue(cc), 60 + 50*ARO);
-      p.strokeWeight(thick);
+    for(let b=0;b<(S.bands||7);b++){
+      const baseY = inner.y + inner.h*(0.14 + 0.72*(b+0.5)/(S.bands||7));
+      const cc = p.lerpColor(P1,P2, b/((S.bands||7)));
+      p.stroke(p.red(cc),p.green(cc),p.blue(cc), 38 + 40*S.arousal);
+      p.strokeWeight(5 + 8*S.arousal);
       p.noFill();
-
-      const x1=inner.x+40, x4=inner.x+inner.w-40;
+      const x1=inner.x+36, x4=inner.x+inner.w-36;
       const x2=p.lerp(x1,x4, 0.33), x3=p.lerp(x1,x4, 0.66);
-      const wob = 18 + 38*NOISEA;
-      const y1=baseY + wob*p.noise(b+0.11);
-      const y4=baseY + wob*p.noise(b+0.22);
-      const y2=baseY - (18+36*ARO)*p.noise(b+1.2);
-      const y3=baseY + (18+36*ARO)*p.noise(b+2.3);
+      const y1=baseY + 22*p.noise(b+0.11), y4=baseY + 22*p.noise(b+0.22);
+      const y2=baseY - (18+28*S.arousal)*p.noise(b+1.2);
+      const y3=baseY + (18+28*S.arousal)*p.noise(b+2.3);
       p.bezier(x1,y1, x2,y2, x3,y3, x4,y4);
     }
     p.pop();
   }
 
+  // ——— Kernel + ticks (timefeel)
   function kernel(){
-    const cx = inner.x + inner.w*(0.40 + 0.24*SOC); // shift right as social increases
-    const cy = inner.y + inner.h*(0.50 + 0.16*(NOS-0.5));
-    const base = Math.min(inner.w,inner.h)*(0.10 + 0.06*ARO);
+    const cx = inner.x + inner.w*(0.42 + 0.22*S.social);
+    const cy = inner.y + inner.h*(0.50 + 0.14*(S.nostalgia-0.5));
+    const base = Math.min(inner.w,inner.h)*(0.10 + 0.06*S.arousal);
+    const glowCol = p.lerpColor(P0,P1, 0.35+0.4*S.arousal);
 
     function glow(x,y,r,col,repeat=5){
       p.noStroke();
       for(let i=repeat;i>0;i--){
         const rad = r*(i/repeat);
-        const a = 180*(i/repeat);
+        const a = 160*(i/repeat);
         p.fill(p.red(col),p.green(col),p.blue(col), a);
         p.circle(x,y,rad*2);
       }
     }
 
-    const glowCol = p.lerpColor(A,B, 0.3+0.4*ARO);
-    if (SCHEMA.kernelMode === "ring"){
+    if (S.kernel === "ring"){
       glow(cx,cy, base*1.1, glowCol, 6);
-      p.noFill(); p.stroke(90,70,60,90 + NOS*40); p.strokeWeight(1.6);
+      p.noFill(); p.stroke(220,220,230, 120); p.strokeWeight(1.4);
       p.circle(cx,cy, base*2.0);
-      const ticks = 24 + Math.round(24*NOS);
+      const ticks = 24 + Math.round(24*S.nostalgia);
       for(let i=0;i<ticks;i++){
         const a = -p.HALF_PI + i/ticks*p.TWO_PI;
         const r1=base*0.95, r2=base*1.05;
         p.line(cx+r1*Math.cos(a), cy+r1*Math.sin(a), cx+r2*Math.cos(a), cy+r2*Math.sin(a));
       }
-    } else if (SCHEMA.kernelMode === "burst"){
+    } else if (S.kernel === "burst"){
       glow(cx,cy, base*1.0, glowCol, 4);
       p.push(); p.translate(cx,cy); p.noFill();
-      const rays = 30 + Math.round(40*ARO);
+      const rays = 30 + Math.round(40*S.arousal);
       for(let i=0;i<rays;i++){
-        const a = p.TWO_PI*i/rays + 0.02*p.frameCount*(0.2+ARO);
-        const r = base*(1.2 + 1.4*ARO*p.noise(i*0.3));
-        p.stroke(80,60,50,120);
+        const a = p.TWO_PI*i/rays;
+        const r = base*(1.2 + 1.4*S.arousal*p.noise(i*0.3));
+        p.stroke(220,220,230,110);
         p.strokeWeight(1.2);
         p.line(0,0, r*Math.cos(a), r*Math.sin(a));
       }
       p.pop();
-      p.noStroke(); p.fill(255,210,140,220); p.circle(cx,cy, base*0.6);
-    } else { // disc
+      p.noStroke(); p.fill(250,230,180,220); p.circle(cx,cy, base*0.6);
+    } else {
       glow(cx,cy, base*1.2, glowCol, 5);
-      p.noStroke(); p.fill(255,205,120,220); p.circle(cx,cy, base*0.9);
+      p.noStroke(); p.fill(250,225,170,215); p.circle(cx,cy, base*0.9);
     }
   }
 
+  // ——— Text fragments around the kernel
   function fragments(){
-    const frAll = (SCHEMA.fragments||[]);
-    const fr = frAll.slice(0, (TRING==="dense"?10:6));
-    if (!fr.length) return;
-
+    const list = (S.fragments||[]).slice(0, S.textDensity==="dense"?10:6);
+    if (!list.length) return;
+    const cx = inner.x + inner.w*(0.42 + 0.22*S.social);
+    const cy = inner.y + inner.h*(0.50 + 0.14*(S.nostalgia-0.5));
+    const R  = Math.min(inner.w,inner.h) * (0.24 + 0.10*S.nostalgia);
     p.textAlign(p.CENTER,p.CENTER);
-    p.textSize(14 + 2*SOC);
-    p.fill(70,55,48, 140 + 40*NOS);
-
-    const cx = inner.x + inner.w*(0.40 + 0.24*SOC);
-    const cy = inner.y + inner.h*(0.50 + 0.16*(NOS-0.5));
-    const baseR = Math.min(inner.w,inner.h) * (0.22 + 0.12*NOS);
-
-    for(let i=0;i<fr.length;i++){
-      const a = -p.HALF_PI + i/fr.length * p.TWO_PI + 0.18*(VAL<0?-1:1);
-      const wob = 10*Math.sin(p.frameCount*(0.004 + 0.0006*i) * (0.2+ARO) + i);
-      const x = cx + (baseR+wob)*Math.cos(a);
-      const y = cy + (baseR+wob)*Math.sin(a);
-      p.text(fr[i], x, y);
+    p.textSize(14 + 2*S.social);
+    p.fill(230,228,226, 160);
+    for(let i=0;i<list.length;i++){
+      const a = -p.HALF_PI + i/list.length * p.TWO_PI + 0.18*(S.valence<0?-1:1);
+      const x = cx + R*Math.cos(a);
+      const y = cy + R*Math.sin(a);
+      p.text(list[i], x, y);
     }
   }
 
   p.setup = function(){
     const c = p.createCanvas(W,H);
     c.parent(document.getElementById('p5mount'));
+    if (MOTION<=0) p.noLoop(); // default: still
   };
 
   p.draw = function(){
-    bgEditorial();
-    monotypePlates();
-    slitscanBands();
+    bg();
+    silhouetteLayer();   // <— human-like “dust” figures
+    bands();
     kernel();
     fragments();
+
+    if (MOTION>0){ setTimeout(()=>p.redraw(), Math.max(600, 2000 - 1400*MOTION)); p.noLoop(); }
   };
 });
 </script>
@@ -360,11 +379,9 @@ p5_html = (
     p5_template
     .replace("__HASH__", schema_hash)
     .replace("__SCHEMA__", SCHEMA_JS)
-    .replace("__CAPTION__", "Visual Memory")
-    .replace("__SUBTITLE__", "ReCollection-inspired")
 )
 
 if go:
     components_html(p5_html, height=1060, scrolling=False)
 else:
-    st.info("Type your memory and click **Generate**. The card adapts to valence, arousal, socialness, and nostalgia; visuals are deterministic per story.")
+    st.info("Type your memory and click **Generate**. The piece composes a monochrome human-like silhouette (portrait or group) with a data-humanist card. Motion is off by default (no flicker).")
