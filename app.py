@@ -118,16 +118,22 @@ p5_html = f"""
 <head>
 <meta charset='utf-8'/>
 <style>
-  html,body {{ margin:0; padding:0; background:#0b0b0d; }}
-  #card {{ width:980px; height:980px; margin:24px auto; position:relative; overflow:hidden; background:#0f0f12; border-radius:28px; box-shadow:0 16px 40px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.2); }}
-  #chrome {{ position:absolute; top:0; left:0; right:0; height:64px; display:flex; align-items:center; gap:10px; padding:0 18px; color:#e8e6e3; font:13px system-ui; background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)); border-top-left-radius:28px; border-top-right-radius:28px; }}
+  html, body {{ margin:0; padding:0; background:#0b0b0d; }}
+  #card {{ width:980px; height:980px; margin:24px auto; position:relative; overflow:hidden;
+          background:#0f0f12; border-radius:28px; box-shadow:0 16px 40px rgba(0,0,0,.35), 0 2px 10px rgba(0,0,0,.2); }}
+  #chrome {{ position:absolute; top:0; left:0; right:0; height:64px; display:flex; align-items:center; gap:10px; padding:0 18px;
+             color:#e8e6e3; font:13px system-ui; background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+             border-top-left-radius:28px; border-top-right-radius:28px; }}
   .dot {{ width:7px; height:7px; border-radius:50%; background:#4a4a50; }}
   #p5mount {{ position:absolute; top:64px; left:0; right:0; bottom:56px; }}
-  #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; color:#c8c6c3; font:11px system-ui; background:linear-gradient(0deg, rgba(255,255,255,.06), rgba(255,255,255,0)); border-bottom-left-radius:28px; border-bottom-right-radius:28px; }}
+  #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; align-items:center; justify-content:space-between;
+             padding:0 16px; color:#c8c6c3; font:11px system-ui; background:linear-gradient(0deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+             border-bottom-left-radius:28px; border-bottom-right-radius:28px; }}
   #btnsave {{ margin-left:auto; padding:6px 10px; border:1px solid #3a3a40; border-radius:8px; background:#15151a; color:#ddd; cursor:pointer; }}
 </style>
 </head>
 <body>
+
 <div id='card'>
   <div id='chrome'>
     <div class='dot'></div><div class='dot'></div><div class='dot'></div>
@@ -225,3 +231,14 @@ new p5((p)=>{{
 </script>
 </body>
 </html>
+"""
+
+# ──────────────────────────────────────
+# Render p5.js Canvas
+# ──────────────────────────────────────
+if go:
+    components_html(p5_html, height=1060, scrolling=False)
+else:
+    st.info("Type your memory and click **Generate**. This renders human-like smoke silhouettes with scenario-aware overlays "
+            "(cake for birthdays, waves/horizon for beach, rain streaks for rainy scenes, etc.), plus data-humanism bands & ticks. "
+            "Different stories → different seeds → different compositions. Motion=0 for still, >0 for gentle breathing.")
