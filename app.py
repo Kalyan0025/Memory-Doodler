@@ -8,7 +8,7 @@ from PIL import Image
 from io import BytesIO
 
 # Get API key (ensure it's loaded properly)
-api_key = "AIzaSyCwlOzQeRl5uHHg8Kswl3czJt1WCbdLr44"  # Use your actual API key here
+api_key = "your_actual_gemini_api_key_here"  # Use your actual API key here
 
 def save_binary_file(file_name, data):
     """Function to save binary data to a file"""
@@ -24,7 +24,7 @@ def generate_image(user_prompt):
     contents = [
         types.Content(
             role="user",
-            parts=[types.Part.from_text(user_prompt)],  # Text prompt to generate the image
+            parts=[types.Part(text=user_prompt)],  # Directly use the 'text' parameter
         ),
     ]
     
