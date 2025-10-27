@@ -86,12 +86,22 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     elif "reunion" in t or "childhood" in t:
         caption = "Back to where we began"
 
+    # Generate a 2-3 word summary based on the memory
+    summary = "Special day"  # You can enhance this logic based on the input
+    if "birthday" in t:
+        summary = "Birthday memories"
+    elif "friend" in t:
+        summary = "Friend reunion"
+    elif "childhood" in t:
+        summary = "Nostalgic moments"
+
     return {
         "emotion": emotion,
         "intensity": round(intensity, 2),
         "palette": palette,
         "nodes": int(nodes),
         "caption": caption,
+        "summary": summary,
     }
 
 # ──────────────────────────────
@@ -112,6 +122,7 @@ default_schema = {
     "palette": ["#F79892", "#FFD482", "#C0A5D7"],
     "nodes": 10,
     "caption": "October 25 — Old friends, new laughter",
+    "summary": "Special day",
 }
 schema = default_schema.copy()
 
@@ -125,7 +136,7 @@ def run_llm(text: str):
         model = genai.GenerativeModel(chosen_model)
         system_hint = (
             "Return ONLY JSON with keys: emotion (string), intensity (0..1), "
-            "palette (array of 3 hex strings), nodes (int 3..20), caption (<=64 chars)."
+            "palette (array of 3 hex strings), nodes (int 3..20), caption (<=64 chars), summary (<=3 words)."
         )
         resp = model.generate_content([system_hint, f"Memory:\n{text}"])
         raw = (resp.text or "").strip()
@@ -140,6 +151,7 @@ def run_llm(text: str):
             "palette": (data.get("palette", schema["palette"]) or schema["palette"])[:3],
             "nodes": max(3, min(20, int(data.get("nodes", schema["nodes"])))),
             "caption": str(data.get("caption", schema["caption"]))[:64],
+            "summary": str(data.get("summary", "Special day"))[:64],
         }
         return out
     except Exception:
@@ -174,6 +186,10 @@ html,body {{margin:0;padding:0;background:#faf7f5;}}
   position:absolute;bottom:10px;right:16px;color:rgba(70,60,65,0.85);font-size:18px;
   font-family:Georgia,serif;pointer-events:none;text-shadow:0 1px 0 rgba(255,255,255,0.4);
 }}
+#summary {{
+  position:absolute;bottom:35px;right:16px;color:rgba(70,60,65,0.85);font-size:14px;
+  font-family:Georgia,serif;text-shadow:0 1px 0 rgba(255,255,255,0.4);
+}}
 canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
 </style>
 </head>
@@ -182,6 +198,7 @@ canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
   <button id='btnsave' onclick='savePNG()'>Download PNG</button>
   <div id='p5mount'></div>
   <div id='caption'>{date} — {schema['caption']}</div>
+  <div id='summary'>{schema['summary']}</div>
 </div>
 
 <script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js'></script>
@@ -229,6 +246,7 @@ new p5((p)=>{{
     }}
 
     document.getElementById('caption').textContent=SCHEMA.caption||'';
+    document.getElementById('summary').textContent=SCHEMA.summary||'';
   }};
 
   p.draw=function(){{
