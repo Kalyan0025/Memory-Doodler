@@ -24,7 +24,7 @@ def load_bot_rules():
     specialized_actions = root.find('SpecializedActions').text
     guidelines = root.find('Guidelines').text
 
-    # Print or store the bot's rules and info as needed (for debugging or further use)
+    # Return bot rules as a dictionary
     return {
         "Role": role,
         "Goal": goal,
@@ -43,16 +43,17 @@ def generate_image(prompt):
         st.error("API key is missing or incorrect!")
         return None
 
-    url = "https://api.gemini.com/v1/generate"  # Replace with correct Gemini API URL
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent"  # Correct API URL
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
+    # Prepare the request payload
     data = {
         "prompt": prompt,
-        "n": 1,
-        "size": "1024x1024"  # Or the size you prefer
+        "temperature": 0.7,  # You can adjust this as needed
+        "maxOutputTokens": 1024  # You can adjust the number of tokens if needed
     }
 
     try:
@@ -61,7 +62,13 @@ def generate_image(prompt):
         response.raise_for_status()  # Raises an error for 4xx/5xx responses
 
         if response.status_code == 200:
-            return response.json()['data'][0]['url']
+            # Extract the image URL from the response (adjust if structure differs)
+            response_data = response.json()
+            if 'content' in response_data and 'image_url' in response_data['content']:
+                return response_data['content']['image_url']
+            else:
+                st.error(f"Error: Image URL not found in response. {response_data}")
+                return None
         else:
             st.error(f"Error: {response.status_code} - {response.text}")
             return None
