@@ -1,52 +1,70 @@
 import os, json, re, textwrap
 import streamlit as st
 from dotenv import load_dotenv
+import datetime
 
 # ──────────────────────────────
 # 1️⃣ Setup
 # ──────────────────────────────
 load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
-st.title("🌙 Dream / Memory Doodler")
+st.title("🌙 Dream / Memory Doodler (Streamlit + Gemini + p5.js)")
 
 # ──────────────────────────────
-# 2️⃣ UI input
+# 2️⃣ Gemini setup (safe + fallback)
 # ──────────────────────────────
-prompt = st.text_area(
-    "Describe your memory/dream/incident",
-    value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
-    height=120,
-)
-date = st.date_input(
-    "Pick a date",
-    value="2025-10-26"
-)
+USE_GEMINI = True
+try:
+    import google.generativeai as genai
+except Exception:
+    USE_GEMINI = False
 
-colA, colB = st.columns(2)
-with colA:
-    do_generate = st.button("Generate")
-with colB:
-    st.caption("Write any memory — happy, calm, or nostalgic.")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+PREF_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+
+available_models, chosen_model = [], None
+if USE_GEMINI and GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    try:
+        for m in genai.list_models():
+            if "generateContent" in getattr(m, "supported_generation_methods", []):
+                if "flash" in m.name and "exp" not in m.name:  # only light models
+                    available_models.append(m.name)
+        pref = [PREF_MODEL, f"models/{PREF_MODEL}"]
+        fallbacks = [
+            "gemini-1.5-flash-latest", "models/gemini-1.5-flash-latest",
+            "gemini-1.5-flash-002", "models/gemini-1.5-flash-002"
+        ]
+        for c in pref + fallbacks:
+            if c in available_models:
+                chosen_model = c; break
+        if not chosen_model and available_models:
+            chosen_model = available_models[0]
+    except Exception as e:
+        st.warning(f"Model listing failed; fallback. ({e})")
+        chosen_model = None
+else:
+    chosen_model = None
 
 # ──────────────────────────────
-# 3️⃣ Emotional Context & Schema Generator
+# 3️⃣ Local heuristic schema generator (offline fallback)
 # ──────────────────────────────
 def local_schema_from_text(text: str, default_schema: dict) -> dict:
     t = text.lower()
     EMO = {
-        "joy": ["happy", "fun", "birthday", "party", "smile", "laugh"],
-        "nostalgia": ["childhood", "old", "school", "remember", "reunion"],
-        "calm": ["calm", "peace", "quiet", "relax"],
-        "love": ["love", "together", "family", "friends"],
-        "sad": ["sad", "alone", "miss", "cry", "loss"],
-        "anxiety": ["stress", "worried", "fear", "nervous"],
+        "joy": ["happy","fun","birthday","party","smile","laugh"],
+        "nostalgia": ["childhood","old","school","remember","reunion"],
+        "calm": ["calm","peace","quiet","relax"],
+        "love": ["love","together","family","friends"],
+        "sad": ["sad","alone","miss","cry","loss"],
+        "anxiety": ["stress","worried","fear","nervous"],
     }
-    counts = {e: sum(t.count(k) for k in kws) for e, kws in EMO.items()}
+    counts = {e: sum(t.count(k) for k in kws) for e,kws in EMO.items()}
     emotion = max(counts, key=counts.get) if any(counts.values()) else "nostalgia"
 
     exclaim = t.count("!")
-    caps = sum(1 for w in re.findall(r"[A-Z]{2,}", text) if len(w) > 2)
-    intensity = min(1.0, 0.4 + 0.1 * exclaim + 0.05 * caps)
+    caps = sum(1 for w in re.findall(r"[A-Z]{2,}", text) if len(w)>2)
+    intensity = min(1.0, 0.4 + 0.1*exclaim + 0.05*caps)
 
     PALETTES = {
         "joy": ["#FFD482", "#F79892", "#F5B3FF"],
@@ -59,7 +77,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     palette = PALETTES.get(emotion, default_schema["palette"])
 
     nodes = 6 if "friend" in t else 4
-    for w in ["friends", "family", "group", "team", "all"]:
+    for w in ["friends","family","group","team","all"]:
         if w in t: nodes += 2
     nodes = max(3, min(20, nodes))
 
@@ -72,19 +90,42 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
         caption = "Back to where we began"
 
     EMO_LABEL = {
-        "joy": "joy", "nostalgia": "warm nostalgia", "calm": "calm",
-        "love": "tenderness", "sad": "soft sorrow", "anxiety": "uneasy"
+        "joy":"joy","nostalgia":"warm nostalgia","calm":"calm",
+        "love":"tenderness","sad":"soft sorrow","anxiety":"uneasy"
     }
     return {
         "emotion": EMO_LABEL.get(emotion, "nostalgia"),
-        "intensity": round(intensity, 2),
+        "intensity": round(intensity,2),
         "palette": palette,
         "nodes": int(nodes),
         "caption": caption
     }
 
 # ──────────────────────────────
-# 4️⃣ Default schema
+# 4️⃣ UI input
+# ──────────────────────────────
+prompt = st.text_area(
+    "Describe your memory/dream/incident",
+    value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
+    height=120,
+)
+
+# Convert string to datetime.date object
+date_value = datetime.date(2025, 10, 26)
+
+date = st.date_input(
+    "Pick a date",
+    value=date_value
+)
+
+colA, colB = st.columns(2)
+with colA:
+    do_generate = st.button("Generate")
+with colB:
+    st.caption("Write any memory — happy, calm, or nostalgic.")
+
+# ──────────────────────────────
+# 5️⃣ Default schema
 # ──────────────────────────────
 default_schema = {
     "emotion": "warm nostalgia",
@@ -96,13 +137,41 @@ default_schema = {
 schema = default_schema.copy()
 
 # ──────────────────────────────
-# 5️⃣ Generate the Schema
+# 6️⃣ Gemini JSON call with safe fallback
 # ──────────────────────────────
+def run_llm(text: str):
+    if not (GEMINI_API_KEY and chosen_model):
+        return None
+    sys_prompt = (open("identity.txt").read().strip()
+                  if os.path.exists("identity.txt")
+                  else "Return only valid JSON with keys: emotion, intensity, palette, nodes, caption.")
+    user_prompt = f"User memory:\n{text}\n\nReturn only the JSON. No prose."
+    try:
+        model = genai.GenerativeModel(chosen_model)
+        resp = model.generate_content([sys_prompt, user_prompt])
+        raw = (resp.text or "").strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+            i, j = raw.find("{"), raw.rfind("}")
+            raw = raw[i:j+1]
+        parsed = json.loads(raw)
+        return {
+            "emotion": str(parsed.get("emotion","nostalgia"))[:40],
+            "intensity": max(0.0, min(1.0, float(parsed.get("intensity",0.8)))),
+            "palette": parsed.get("palette", default_schema["palette"])[:3],
+            "nodes": max(3, min(20, int(parsed.get("nodes",10)))),
+            "caption": str(parsed.get("caption","Memory Doodle"))[:64],
+        }
+    except Exception as e:
+        st.info("💡 Using local generator (Gemini quota reached or offline).")
+        return None
+
 if do_generate:
-    schema = local_schema_from_text(prompt, default_schema)
+    llm_schema = run_llm(prompt)
+    schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
 
 # ──────────────────────────────
-# 6️⃣ p5.js visualization (based on schema)
+# 7️⃣ p5.js visualization
 # ──────────────────────────────
 from streamlit.components.v1 import html as st_html
 
@@ -238,13 +307,12 @@ function drawGlow(p,x,y,radius,col) {{
 </body>
 </html>
 """
-
-# Displaying the HTML visualization
 st.components.v1.html(p5_html, height=980, scrolling=False)
 
 # ──────────────────────────────
-# 7️⃣ Debug info
+# 8️⃣ Debug info
 # ──────────────────────────────
-with st.expander("Debug info"):
-    st.write("Schema:")
-    st.json(schema)
+with st.expander("Gemini debug"):
+    st.write("Chosen model:", chosen_model)
+    if available_models:
+        st.json(available_models)
