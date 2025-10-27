@@ -1,38 +1,73 @@
-from flask import Flask, request, render_template, jsonify
-import openai  # Assuming Gemini API is part of OpenAI's platform
+import streamlit as st
+import requests
 from datetime import datetime
-import os
+from PIL import Image
+from io import BytesIO
 
-app = Flask(__name__)
+# Function to get API key from identity.txt
+def get_api_key():
+    with open("identity.txt", "r") as f:
+        return f.read().strip()
 
-# Set up the Gemini API key (replace with actual API key)
-openai.api_key = "your_api_key"
-
+# Function to generate image using the Gemini API
 def generate_image(prompt):
-    response = openai.Image.create(
-        prompt=prompt,
-        n=1,
-        size="1024x1024"
-    )
-    return response['data'][0]['url']
+    api_key = get_api_key()
+    url = "https://api.gemini.com/v1/generate"  # Replace with correct Gemini API URL
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "prompt": prompt,
+        "n": 1,
+        "size": "1024x1024"  # Or the size you prefer
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()['data'][0]['url']
+    else:
+        st.error("Error generating image!")
+        return None
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# Streamlit front-end
+def main():
+    st.title("DreamDoodler - Visual Journal")
 
-@app.route('/generate', methods=['POST'])
-def generate():
-    scenario = request.form['scenario']
-    emotion = request.form['emotion']
-    date = datetime.now().strftime("%b %d, %Y")
+    # User inputs
+    st.write("Please describe your dream, memory, or scenario:")
+    scenario = st.text_area("Scenario Description")
     
-    # Combine inputs into a prompt for the image generation
-    prompt = f"Create a dreamy, emotional scene based on the following scenario: {scenario}. The emotion is {emotion}. Represent the memory visually with appropriate colors and objects."
-    
-    # Generate the image using the Gemini API
-    image_url = generate_image(prompt)
-    
-    return render_template('result.html', image_url=image_url, date=date, emotion=emotion)
+    st.write("What emotion does it evoke?")
+    emotion = st.text_input("Emotion (e.g., joyful, nostalgic, sad, etc.)")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    # Generate button
+    if st.button("Generate Visual"):
+        if scenario and emotion:
+            date = datetime.now().strftime("%b %d, %Y")
+            prompt = f"Create a dreamy, emotional scene based on the following scenario: {scenario}. The emotion is {emotion}. Represent the memory visually with appropriate colors and objects."
+            image_url = generate_image(prompt)
+
+            if image_url:
+                # Display the image
+                st.image(image_url, caption=f"Generated Image - {date}", use_column_width=True)
+                st.write(f"Date: {date}")
+                st.write(f"Emotion: {emotion}")
+                
+                # Provide a download button
+                response = requests.get(image_url)
+                img = Image.open(BytesIO(response.content))
+                img_path = "generated_image.png"
+                img.save(img_path)
+
+                with open(img_path, "rb") as file:
+                    st.download_button(
+                        label="Download Image",
+                        data=file,
+                        file_name="dream_visual.png",
+                        mime="image/png"
+                    )
+        else:
+            st.error("Please provide both scenario and emotion.")
+
+if __name__ == "__main__":
+    main()
