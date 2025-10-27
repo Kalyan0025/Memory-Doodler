@@ -1,6 +1,7 @@
 import os, json, re, textwrap
 import streamlit as st
 from dotenv import load_dotenv
+from datetime import datetime
 
 # ──────────────────────────────
 # 1️⃣ Setup
@@ -72,7 +73,7 @@ prompt = st.text_area(
     value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
     height=120,
 )
-date = st.date_input("Pick a date", value="2025-10-26")
+date = st.date_input("Pick a date", value=datetime.today().date())
 colA, colB = st.columns(2)
 with colA:
     do_generate = st.button("Generate")
