@@ -1,6 +1,7 @@
 import os, json, re, textwrap
 import streamlit as st
 from dotenv import load_dotenv
+import random
 
 # ──────────────────────────────
 # 1️⃣ Setup
@@ -85,7 +86,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
         caption = "Old friends, new laughter"
     elif "birthday" in t:
         caption = "A day that glowed"
-    elif "reunion" in t or "childhood" in t:
+    elif "reunion" or "childhood" in t:
         caption = "Back to where we began"
 
     EMO_LABEL = {
@@ -108,15 +109,21 @@ prompt = st.text_area(
     value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
     height=120,
 )
+
+date = st.date_input(
+    "Pick a date",
+    value="2025-10-26"
+)
+
 colA, colB = st.columns(2)
 with colA:
     do_generate = st.button("Generate")
 with colB:
     st.caption("Write any memory — happy, calm, or nostalgic.")
 
-# ──────────────────────────────
+# -------------------------------
 # 5️⃣ Default schema
-# ──────────────────────────────
+# -------------------------------
 default_schema = {
     "emotion": "warm nostalgia",
     "intensity": 0.8,
@@ -126,9 +133,9 @@ default_schema = {
 }
 schema = default_schema.copy()
 
-# ──────────────────────────────
+# -------------------------------
 # 6️⃣ Gemini JSON call with safe fallback
-# ──────────────────────────────
+# -------------------------------
 def run_llm(text: str):
     if not (GEMINI_API_KEY and chosen_model):
         return None
@@ -160,9 +167,9 @@ if do_generate:
     llm_schema = run_llm(prompt)
     schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
 
-# ──────────────────────────────
+# -------------------------------
 # 7️⃣ p5.js visualization
-# ──────────────────────────────
+# -------------------------------
 from streamlit.components.v1 import html as st_html
 
 p5_html = f"""
