@@ -153,7 +153,7 @@ function col(p,hex){ return p.color(hex||"#888"); }
 
 new p5((p)=>{
   const W=980, H=980;
-  const inner = {x:0, y:68, w:W, h:H-68-64};
+  const inner = {x:0, y:68, w:W, h:H-68-64}; // drawable area inside chrome/footer
   const [A,B,C] = SCHEMA.palette.map(h=>col(p,h));
   const seed = SCHEMA.seed||1;
   p.randomSeed(seed); p.noiseSeed(seed);
@@ -176,7 +176,6 @@ new p5((p)=>{
 
   function drawReunion(){
     bgEditorial();
-    // Here, you can add additional creative drawing functions
     p.fill(255, 205, 120, 120);
     p.circle(W / 2, H / 2, 200);
   }
