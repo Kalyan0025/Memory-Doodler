@@ -1,18 +1,25 @@
 # app.py
 # Visual Memory — smoke-like silhouettes × data-humanism (Vertex AI Imagen 3)
 
-import re, math, hashlib
+import re, math, hashlib, os
 import streamlit as st
 
-# -----------------------------
-# Optional Vertex AI imports
-# -----------------------------
+# ---- Try to import Vertex AI SDK ----
 VERTEX_OK = True
 try:
     from vertexai import init as vertexai_init
     from vertexai.preview.vision_models import ImageGenerationModel
 except Exception:
     VERTEX_OK = False
+
+# ---- Optional: load service-account creds from Streamlit secrets ----
+CREDS = None
+try:
+    from google.oauth2.service_account import Credentials
+    if "gcp_service_account" in st.secrets:
+        CREDS = Credentials.from_service_account_info(dict(st.secrets["gcp_service_account"]))
+except Exception:
+    CREDS = None
 
 st.set_page_config(page_title="Visual Memory — Data Humanism", page_icon="🌀", layout="centered")
 st.title("🌀 Visual Memory (smoke silhouettes × data-humanism)")
@@ -56,7 +63,6 @@ arousal   = max(0.0, min(1.0, sig(score(L_HIGH)-score(L_LOW))))
 social    = max(0.0, min(1.0, sig(score(L_SOC))))
 nostalgia = max(0.0, min(1.0, sig(score(L_NOS))))
 
-# lightweight keyword fragments for subtle on-image “text dust”
 STOP = set("""a an the and or of for to from is are was were be being been this that those these i me my we our you your he she they them his her their in on at by with without into out about over under after before again more most such very just not no yes it's its""".split())
 frags = [w for w in re.findall(r"[A-Za-z]{3,}", t) if w.lower() not in STOP][:8]
 frag_text = ", ".join(frags) if frags else "memory, moment, echo"
@@ -103,7 +109,7 @@ def build_prompt(story, v, a, s, n, fragments):
         "Dark background with a central bloom of light; no logos; no big readable text; not photorealistic."
     )
 
-prompt_text = build_prompt(t, valence, arousal, social, nostalgia, frag_text)
+prompt_text = build_prompt(story, valence, arousal, social, nostalgia, frag_text)
 
 # -----------------------------
 # Vertex AI call
@@ -113,7 +119,13 @@ def generate_with_vertex(prompt: str, aspect_ratio: str, guidance: int, seed_val
     location   = st.secrets.get("GCP_LOCATION", "us-central1")
     if not project_id:
         raise RuntimeError("Missing GCP_PROJECT_ID in .streamlit/secrets.toml")
-    vertexai_init(project=project_id, location=location)
+
+    # init with optional creds (service account) or ADC fallback
+    if CREDS is not None:
+        vertexai_init(project=project_id, location=location, credentials=CREDS)
+    else:
+        vertexai_init(project=project_id, location=location)
+
     model = ImageGenerationModel.from_pretrained("imagen-3.0-generate-001")
     resp = model.generate_images(
         prompt=prompt,
@@ -126,7 +138,6 @@ def generate_with_vertex(prompt: str, aspect_ratio: str, guidance: int, seed_val
     if not resp or not getattr(resp, "images", None):
         raise RuntimeError("No image returned.")
     img_obj = resp.images[0]
-    # SDKs differ: try both attrs
     return getattr(img_obj, "_image_bytes", None) or getattr(img_obj, "image_bytes", None)
 
 # -----------------------------
@@ -136,9 +147,11 @@ if go:
     st.subheader("Generated Prompt")
     st.code(prompt_text)
 
+    if not VERTEX_OK:
+        st.error("Vertex AI SDK is not installed. Run: `pip install --upgrade google-cloud-aiplatform vertexai`")
+        st.stop()
+
     try:
-        if not VERTEX_OK:
-            raise RuntimeError("google-cloud-aiplatform / Vertex AI SDK not available. Install it and restart.")
         img_bytes = generate_with_vertex(
             prompt=prompt_text,
             aspect_ratio=aspect,
@@ -148,9 +161,10 @@ if go:
         st.image(img_bytes, caption="Reconstructed Visual Memory", use_column_width=True)
     except Exception as e:
         st.error(f"Image generation error: {e}")
-        st.caption("Make sure Vertex AI is enabled, you're authenticated, and `.streamlit/secrets.toml` has GCP_PROJECT_ID & GCP_LOCATION.")
+        st.caption("Ensure Vertex AI is enabled, you’re authenticated, and `.streamlit/secrets.toml` has GCP_PROJECT_ID & GCP_LOCATION. "
+                   "On hosted environments, add a service account JSON to secrets under [gcp_service_account].")
     st.markdown("---")
     st.caption(f"Valence {valence:.2f} • Arousal {arousal:.2f} • Social {social:.2f} • Nostalgia {nostalgia:.2f}")
 else:
     st.info("Type your memory and click **Generate**. The image blends smoke-like human silhouettes with subtle data-humanism motifs.\n"
-            "Tip: for birthdays, the circular dial is replaced with a glowing cake automatically.")
+            "Tip: birthdays automatically replace the circle with a glowing cake at the center.")
