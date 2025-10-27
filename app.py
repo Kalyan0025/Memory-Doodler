@@ -1,29 +1,32 @@
-import streamlit as st
+import re
 import json
 import hashlib
+import math
+import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 # ──────────────────────────────────────
 # CONFIGURATION
 # ──────────────────────────────────────
-st.set_page_config(page_title="Visual Memory — ReCollection × Data Humanism", page_icon="🌀", layout="centered")
-st.title("🌀 Visual Memory (ReCollection × Data Humanism)")
+st.set_page_config(page_title="Memory Doodler — Visual Memory Card", page_icon="🧠", layout="centered")
+st.title("🧠 Visual Memory Card (Data-Humanism Inspired)")
 
 # ──────────────────────────────────────
-# 1) INPUT: Story and Emotion Data
+# 1) INPUT: Memory Story and Emotion Data
 # ──────────────────────────────────────
 story = st.text_area(
     "Whisper your memory (a few sentences work best)",
     "Yesterday was my birthday. I met childhood friends after years; we laughed, took photos, and shared cake.",
     height=140,
 )
-
 motion = st.slider("Motion (0 = still)", 0.0, 1.0, 0.0, 0.05)
 go = st.button("Generate")
 
 # ──────────────────────────────────────
-# 2) Text → schema with expressive axes
+# 2) Text Processing → Feature Extraction → Schema
 # ──────────────────────────────────────
 t = story.strip()
+seed_text = t if t else "empty"
 seed_text = (t + f"|{motion:.2f}") or "empty"
 seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % 10**9
 tl = t.lower()
@@ -46,10 +49,9 @@ social = max(0.0, min(1.0, score(["friends", "family", "together"]) / 10))
 nostalgia = max(0.0, min(1.0, score(["childhood", "memories", "nostalgia"]) / 10))
 
 # ──────────────────────────────────────
-# 3) p5.js Code
+# 3) p5.js Code with Token Replacement
 # ──────────────────────────────────────
 
-# Build the visual prompt (send the data to p5.js as JSON)
 def build_visual_prompt():
     return {
         "valence": round(valence, 3),
@@ -83,7 +85,7 @@ p5_html = f"""
         #card {{ width: 980px; height: 980px; margin: 24px auto; background: #faf7f5; border-radius: 28px; box-shadow: 0 16px 40px rgba(0,0,0,0.20); }}
         #chrome {{ position:absolute; top:0; left:0; right:0; height: 64px; background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.60)); border-top-left-radius: 28px; }}
         #p5mount {{ position:absolute; top:64px; left:0; right:0; bottom:56px; }}
-        #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; justify-content:space-between; padding:0 16px; color:#c8c6c3; font: 11px system-ui; }}
+        #footer {{ position:absolute; left:0; right:0; bottom:0; height:56px; display:flex; justify-content:space-between; padding:0 16px; color:#6a5e55; font: 12px system-ui; }}
     </style>
 </head>
 <body>
@@ -114,7 +116,7 @@ p5_html = f"""
         p.draw = function() {{
             p.background(0);
 
-            // Here you can add the logic for the visual elements based on emotional parameters
+            // Example: Create circles based on emotion data
             p.fill(255, 100 + valence * 100, 100 + arousal * 100);
             p.ellipse(W / 2, H / 2, 300 + nostalgia * 200, 300 + social * 200);
 
