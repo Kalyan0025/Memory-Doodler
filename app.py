@@ -1,6 +1,7 @@
 import re
 import hashlib
 import json
+import math  # Add this line to import the math module
 import streamlit as st
 from streamlit.components.v1 import html as components_html
 
@@ -43,7 +44,7 @@ L_SOC = ["friends", "family", "together", "team", "crowd", "group", "party", "re
 L_NOS = ["yesterday", "childhood", "memories", "remember", "nostalgia", "nostalgic", "school", "college", "old", "album", "photo", "grandma", "grandfather"]
 
 def score(words): return sum(2 for w in words if f" {w} " in tl)
-sig = lambda x: 1/(1+math.exp(-x/4))
+sig = lambda x: 1/(1+math.exp(-x/4))  # Corrected by importing the math module
 valence = max(-1.0, min(1.0, (sig(score(L_POS) - score(L_NEG)) - 0.5) * 2))
 arousal = max(0.0, min(1.0, sig(score(L_HIGH) - score(L_LOW))))
 social = max(0.0, min(1.0, sig(score(L_SOC))))
