@@ -1,6 +1,5 @@
 import os, json, re, textwrap
 import streamlit as st
-import datetime
 from dotenv import load_dotenv
 
 # ──────────────────────────────
@@ -8,56 +7,98 @@ from dotenv import load_dotenv
 # ──────────────────────────────
 load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="centered")
-st.title("🌙 Dream / Memory Doodler")
+st.title("🌙 Dream / Memory Doodler (Data-Humanism Inspired)")
 
 # ──────────────────────────────
-# 2️⃣ User Input (Data-Driven)
+# 2️⃣ Local heuristic schema generator (offline fallback)
+# ──────────────────────────────
+def local_schema_from_text(text: str, default_schema: dict) -> dict:
+    t = text.lower()
+    EMO = {
+        "joy": ["happy","fun","birthday","party","smile","laugh"],
+        "nostalgia": ["childhood","old","school","remember","reunion"],
+        "calm": ["calm","peace","quiet","relax"],
+        "love": ["love","together","family","friends"],
+        "sad": ["sad","alone","miss","cry","loss"],
+        "anxiety": ["stress","worried","fear","nervous"],
+    }
+    counts = {e: sum(t.count(k) for k in kws) for e,kws in EMO.items()}
+    emotion = max(counts, key=counts.get) if any(counts.values()) else "nostalgia"
+
+    exclaim = t.count("!")
+    caps = sum(1 for w in re.findall(r"[A-Z]{2,}", text) if len(w)>2)
+    intensity = min(1.0, 0.4 + 0.1*exclaim + 0.05*caps)
+
+    PALETTES = {
+        "joy": ["#FFD482", "#F79892", "#F5B3FF"],
+        "nostalgia": ["#F7C6B3", "#EBD8C3", "#C0A5D7"],
+        "calm": ["#B9E3FF", "#DDEBF2", "#BFD6C7"],
+        "love": ["#FFB3C1", "#FFDDE1", "#FFF0F3"],
+        "sad": ["#9DB4C0", "#6C7A89", "#C7D3DD"],
+        "anxiety": ["#A3B1C6", "#D6D6D6", "#8A9DB0"],
+    }
+    palette = PALETTES.get(emotion, default_schema["palette"])
+
+    nodes = 6 if "friend" in t else 4
+    for w in ["friends","family","group","team","all"]:
+        if w in t: nodes += 2
+    nodes = max(3, min(20, nodes))
+
+    caption = "A day to remember"
+    if "birthday" in t and "friend" in t:
+        caption = "Old friends, new laughter"
+    elif "birthday" in t:
+        caption = "A day that glowed"
+    elif "reunion" or "childhood" in t:
+        caption = "Back to where we began"
+
+    EMO_LABEL = {
+        "joy":"joy","nostalgia":"warm nostalgia","calm":"calm",
+        "love":"tenderness","sad":"soft sorrow","anxiety":"uneasy"
+    }
+    return {
+        "emotion": EMO_LABEL.get(emotion, "nostalgia"),
+        "intensity": round(intensity,2),
+        "palette": palette,
+        "nodes": int(nodes),
+        "caption": caption
+    }
+
+# ──────────────────────────────
+# 3️⃣ UI input
 # ──────────────────────────────
 prompt = st.text_area(
     "Describe your memory/dream/incident",
     value="I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
     height=120,
 )
-
-date_value = datetime.date(2025, 10, 26)
-date = st.date_input("Pick a date", value=date_value)
+date = st.date_input("Pick a date", value="2025-10-26")
+colA, colB = st.columns(2)
+with colA:
+    do_generate = st.button("Generate")
+with colB:
+    st.caption("Write any memory — happy, calm, or nostalgic.")
 
 # ──────────────────────────────
-# 3️⃣ Data-Driven Schema Generation
+# 4️⃣ Default schema
 # ──────────────────────────────
-def local_schema_from_text(text: str, date: datetime.date, default_schema: dict) -> dict:
-    # Extract relevant data from the text (nodes, date, etc.)
-    words = text.split()
-    nodes = len(words)  # Number of people or entities based on the text (simple example)
-    event_type = "birthday" if "birthday" in text.lower() else "reunion"
-    
-    palette = ["#FFD482", "#F79892", "#C0A5D7"] if event_type == "birthday" else ["#B9E3FF", "#DDEBF2", "#BFD6C7"]
-    
-    caption = f"Event on {date.strftime('%B %d, %Y')}"
-    
-    return {
-        "date": date,
-        "nodes": nodes,
-        "event_type": event_type,
-        "caption": caption,
-        "palette": palette
-    }
-
-# Default schema (example)
 default_schema = {
-    "date": datetime.date(2025, 10, 26),
-    "nodes": 6,
-    "event_type": "birthday",
-    "caption": "Old friends, new laughter",
-    "palette": ["#FFD482", "#F79892", "#C0A5D7"]
+    "emotion": "warm nostalgia",
+    "intensity": 0.8,
+    "palette": ["#F79892", "#FFD482", "#C0A5D7"],
+    "nodes": 10,
+    "caption": "October 25 — Old friends, new laughter"
 }
 schema = default_schema.copy()
 
-if st.button("Generate"):
-    schema = local_schema_from_text(prompt, date, default_schema)
+# ──────────────────────────────
+# 5️⃣ Local generator and text-to-schema
+# ──────────────────────────────
+if do_generate:
+    schema = local_schema_from_text(prompt, default_schema)
 
 # ──────────────────────────────
-# 4️⃣ p5.js Visualization with Data Influence
+# 6️⃣ p5.js visualization (based on schema)
 # ──────────────────────────────
 from streamlit.components.v1 import html as st_html
 
