@@ -1,12 +1,17 @@
 import re, json, hashlib, math
 import streamlit as st
-from streamlit.components.v1 import html as components_html
+import google.generativeai as genai
+from vertexai import init as vertexai_init
+from vertexai.preview.vision_models import ImageGenerationModel
 
 # ──────────────────────────────────────
-# CONFIG
+# CONFIGURATION
 # ──────────────────────────────────────
 st.set_page_config(page_title="Visual Memory — ReCollection-inspired", page_icon="🌀", layout="centered")
 st.title("🌀 Visual Memory (ReCollection × Data Humanism)")
+
+# Configure Gemini API key
+genai.configure(api_key=st.secrets.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE"))
 
 # ──────────────────────────────────────
 # INPUT: User Memory
@@ -24,8 +29,7 @@ go = st.button("Generate")
 # 2) Text → schema with expressive axes
 # ──────────────────────────────────────
 t = story.strip()
-seed_text = t if t else "empty"
-seed_text = (t + str(motion)).strip() or "empty"
+seed_text = (t + f"|{motion:.2f}") or "empty"
 seed = int(hashlib.sha256(seed_text.encode()).hexdigest(), 16) % 10**9
 tl = t.lower()
 
