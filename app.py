@@ -332,4 +332,9 @@ new p5((p)=>{{
       const n=nodes[i]; const breathe=4*Math.sin(p.frameCount*BREATH_BASE+n.phase);
       const vx=n.x+breathe*0.8, vy=n.y+breathe*0.8;
       p.noFill(); p.stroke(130,90,60,70); p.strokeWeight(2); p.circle(vx+2,vy+2,54);
-      p.fill(255,205,120,170); p.stroke(140,90,60
+      p.fill(255,205,120,170); p.stroke(140,90,60,120); p.strokeWeight(1.8); p.circle(vx,vy,44);
+    }}
+  }};
+}});
+
+function drawBackground(p,p
