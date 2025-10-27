@@ -102,6 +102,8 @@ prompt = st.text_area(
     "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
     height=120,
 )
+
+date = st.text_input("Enter the date of the memory", "October 25, 2025")
 do_generate = st.button("Generate")
 
 default_schema = {
@@ -179,7 +181,7 @@ canvas {{border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.06);}}
 <div id='wrap' data-schema-hash='{schema_hash}'>
   <button id='btnsave' onclick='savePNG()'>Download PNG</button>
   <div id='p5mount'></div>
-  <div id='caption'></div>
+  <div id='caption'>{date} — {schema['caption']}</div>
 </div>
 
 <script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js'></script>
@@ -305,3 +307,4 @@ with st.expander("Gemini debug"):
     st.write("Chosen model:", chosen_model)
     if available_models:
         st.json(available_models)
+    st.json(schema)
