@@ -2,8 +2,6 @@ import os, json, re, hashlib
 import streamlit as st
 from dotenv import load_dotenv
 from streamlit.components.v1 import html as components_html
-from PIL import Image, ImageDraw, ImageFont
-import requests
 
 # ──────────────────────────────
 # Setup
@@ -213,6 +211,7 @@ default_schema = {
     "motifs": [{"kind": "abstract"}] * 9,
     "theme": "generic",
 }
+
 schema = default_schema.copy()
 
 # ──────────────────────────────
@@ -337,31 +336,6 @@ new p5((p)=>{{
   }};
 }});
 
-function drawBackground(p,palette){{  const c1=p.color(palette[0]), c2=p.color(palette[1]), c3=p.color(palette[2]);  for(let y=0;y<p.height;y++){{ const f=y/(p.height-1); const col=p.lerpColor(c1,c2,f); p.stroke(col); p.line(0,y,p.width,y); }}  p.noStroke(); for(let r=0;r<600;r++){{ const a=p.map(r,0,600,110,0); p.fill(p.red(c3),p.green(c3),p.blue(c3),a*0.3); p.circle(p.width*0.85,p.height*0.15,r); }}}
-
-function drawGlow(p,x,y,radius,col){{  p.noStroke(); for(let r=radius;r>0;r-=6){{ const a=p.map(r,0,radius,220,0); p.fill(p.red(col),p.green(col),p.blue(col),a*0.5); p.circle(x,y,r*2); }} }}
-
-function savePNG(){{  const c=document.querySelector('canvas'); if(!c) return;  const link=document.createElement('a'); link.download='memory_doodle.png'; link.href=c.toDataURL('image/png'); link.click();}}
-
-</script>
-</body>
-</html>
-"""
-
-# Render (no 'key' argument)
-try:
-    components_html("<div style='padding:6px;font:14px system-ui'>Loading canvas…</div>", height=40, scrolling=False)
-    components_html(p5_html, height=980, scrolling=False)
-except Exception as e:
-    st.error("⚠️ Failed to render p5.js canvas. See details below.")
-    st.exception(e)
-    st.write("schema:", schema)
-    st.write("p5_html length:", len(p5_html))
-    st.code(p5_html[:600], language="html")
-
-# Debug
-with st.expander("Gemini debug"):
-    st.write("Chosen model:", chosen_model)
-    if available_models:
-        st.json(available_models)
-    st.json(schema)
+function drawBackground(p,palette){{
+  const c1=p.color(palette[0]), c2=p.color(palette[1]), c3=p.color(palette[2]);
+  for(let y=
