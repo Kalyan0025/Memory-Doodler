@@ -10,6 +10,28 @@ load_dotenv()
 st.set_page_config(page_title="Dream/Memory Doodler", page_icon="🌙", layout="wide")
 
 # ──────────────────────────────
+# Session state defaults (auto-generate on type)
+# ──────────────────────────────
+if "schema" not in st.session_state:
+    st.session_state.schema = {
+        "emotion": "nostalgia",
+        "intensity": 0.8,
+        "palette": ["#F79892", "#FFD482", "#C0A5D7"],
+        "nodes": 10,
+        "caption": "October 25 — Old friends, new laughter",
+        "summary": "Special day",
+    }
+if "date" not in st.session_state:
+    st.session_state.date = "October 25, 2025"
+if "auto_mode" not in st.session_state:
+    st.session_state.auto_mode = True
+if "prompt_text" not in st.session_state:
+    st.session_state.prompt_text = (
+        "I had my birthday yesterday and met a lot of childhood friends — "
+        "it was a memorable birthday for me."
+    )
+
+# ──────────────────────────────
 # Custom CSS - Dark Doodled Mode
 # ──────────────────────────────
 st.markdown("""
@@ -59,7 +81,7 @@ header {visibility: hidden;}
     transform: rotate(0.5deg);
 }
 
-/* Section styling */
+/* Inputs */
 .stTextArea, .stTextInput {
     font-family: 'Kalam', cursive !important;
 }
@@ -90,7 +112,7 @@ header {visibility: hidden;}
     box-shadow: 0 0 20px rgba(78, 205, 196, 0.3) !important;
 }
 
-/* Button styling */
+/* Button */
 .stButton button {
     width: 100% !important;
     padding: 1.2rem 2rem !important;
@@ -110,7 +132,7 @@ header {visibility: hidden;}
     box-shadow: 6px 6px 0px #333 !important;
 }
 
-/* Expander styling */
+/* Expander */
 .streamlit-expanderHeader {
     background: #252525 !important;
     color: #4ecdc4 !important;
@@ -119,7 +141,6 @@ header {visibility: hidden;}
     font-family: 'Caveat', cursive !important;
     font-size: 1.3rem !important;
 }
-
 .streamlit-expanderContent {
     background: #1e1e1e !important;
     border: 2px dashed #444 !important;
@@ -127,7 +148,7 @@ header {visibility: hidden;}
     color: #b0b0b0 !important;
 }
 
-/* JSON styling */
+/* JSON */
 code {
     background: #1e1e1e !important;
     color: #4ecdc4 !important;
@@ -155,19 +176,16 @@ label {
     transition: all 0.3s ease;
     margin: 0.5rem;
 }
-
 .metadata-card:hover {
     transform: rotate(-2deg) scale(1.05);
     border-color: #4ecdc4;
 }
-
 .metadata-label {
     font-family: 'Kalam', cursive;
     font-size: 0.9rem;
     color: #888;
     margin-bottom: 0.5rem;
 }
-
 .metadata-value {
     font-family: 'Caveat', cursive;
     font-size: 2rem;
@@ -175,13 +193,12 @@ label {
     color: #4ecdc4;
 }
 
-/* Color palette */
+/* Palette row */
 .palette-container {
     display: flex;
     gap: 1rem;
     margin: 1rem 0;
 }
-
 .color-swatch {
     flex: 1;
     height: 80px;
@@ -190,12 +207,9 @@ label {
     box-shadow: 0 4px 15px rgba(0,0,0,0.4);
     transition: all 0.3s ease;
 }
+.color-swatch:hover { transform: translateY(-5px) rotate(5deg); }
 
-.color-swatch:hover {
-    transform: translateY(-5px) rotate(5deg);
-}
-
-/* Caption display */
+/* Caption */
 .caption-display {
     background: #252525;
     border: 3px dashed #444;
@@ -210,12 +224,11 @@ label {
     transform: rotate(-0.5deg);
 }
 
-/* Doodle decorations */
+/* Doodle icons */
 .doodle-icon {
     display: inline-block;
     animation: wiggle 2s ease-in-out infinite;
 }
-
 @keyframes wiggle {
     0%, 100% { transform: rotate(-5deg); }
     50% { transform: rotate(5deg); }
@@ -226,14 +239,9 @@ label {
     0%, 100% { opacity: 0.05; }
     50% { opacity: 0.1; }
 }
-
 .stApp::before {
     content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: radial-gradient(circle at 20% 50%, rgba(78, 205, 196, 0.1) 0%, transparent 50%),
                 radial-gradient(circle at 80% 80%, rgba(69, 183, 209, 0.1) 0%, transparent 50%);
     animation: pulse 4s ease-in-out infinite;
@@ -346,38 +354,7 @@ def local_schema_from_text(text: str, default_schema: dict) -> dict:
     }
 
 # ──────────────────────────────
-# UI Layout - Two Columns
-# ──────────────────────────────
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.markdown('<span class="doodle-icon">🌙</span>', unsafe_allow_html=True)
-    prompt = st.text_area(
-        "Share Your Memory",
-        "I had my birthday yesterday and met a lot of childhood friends — it was a memorable birthday for me.",
-        height=200,
-        help="Tell me about a memory, dream, or moment you'd like to capture..."
-    )
-    
-    date = st.text_input("Date of the memory", "October 25, 2025")
-    do_generate = st.button("✨ Transform into Memory DNA ✨")
-
-with col2:
-    st.markdown('<span class="doodle-icon">🎨</span>', unsafe_allow_html=True)
-    st.markdown("**Memory DNA Output**")
-
-default_schema = {
-    "emotion": "nostalgia",
-    "intensity": 0.8,
-    "palette": ["#F79892", "#FFD482", "#C0A5D7"],
-    "nodes": 10,
-    "caption": "October 25 — Old friends, new laughter",
-    "summary": "Special day",
-}
-schema = default_schema.copy()
-
-# ──────────────────────────────
-# Gemini call + fallback
+# LLM runner (Gemini) with fallback
 # ──────────────────────────────
 def run_llm(text: str):
     if not (GEMINI_API_KEY and chosen_model):
@@ -396,28 +373,76 @@ def run_llm(text: str):
             raw = raw[i:j+1]
         data = json.loads(raw)
         out = {
-            "emotion": str(data.get("emotion", schema["emotion"]))[:40],
-            "intensity": max(0.0, min(1.0, float(data.get("intensity", schema["intensity"])))),
-            "palette": (data.get("palette", schema["palette"]) or schema["palette"])[:3],
-            "nodes": max(3, min(20, int(data.get("nodes", schema["nodes"])))),
-            "caption": str(data.get("caption", schema["caption"]))[:64],
+            "emotion": str(data.get("emotion", st.session_state.schema["emotion"]))[:40],
+            "intensity": max(0.0, min(1.0, float(data.get("intensity", st.session_state.schema["intensity"])))),
+            "palette": (data.get("palette", st.session_state.schema["palette"]) or st.session_state.schema["palette"])[:3],
+            "nodes": max(3, min(20, int(data.get("nodes", st.session_state.schema["nodes"])))),
+            "caption": str(data.get("caption", st.session_state.schema["caption"]))[:64],
             "summary": str(data.get("summary", "Special day"))[:64],
         }
         return out
     except Exception:
-        st.info("💡 Using local generator (Gemini quota reached or offline).")
+        # Silent fallback; the UI still works via local generator
         return None
 
-if do_generate:
-    with st.spinner("🎨 Creating your memory DNA..."):
-        llm_schema = run_llm(prompt)
-        schema = llm_schema if llm_schema else local_schema_from_text(prompt, default_schema)
+# ──────────────────────────────
+# Update callback (auto-generate)
+# ──────────────────────────────
+def update_schema_from_prompt():
+    text = st.session_state.get("prompt_text", "").strip()
+    date_val = st.session_state.get("date_text", st.session_state.date)
+    st.session_state.date = date_val
+
+    llm_schema = run_llm(text) if (GEMINI_API_KEY and chosen_model) else None
+    new_schema = llm_schema if llm_schema else local_schema_from_text(text, st.session_state.schema)
+
+    if "caption" in new_schema:
+        new_schema["caption"] = new_schema["caption"][:64]
+    st.session_state.schema = new_schema
+
+# ──────────────────────────────
+# UI Layout - Two Columns
+# ──────────────────────────────
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.markdown('<span class="doodle-icon">🌙</span>', unsafe_allow_html=True)
+
+    st.checkbox("Auto-generate as I type", key="auto_mode", value=True)
+
+    st.text_area(
+        "Share Your Memory",
+        st.session_state.prompt_text,
+        height=200,
+        key="prompt_text",
+        on_change=update_schema_from_prompt if st.session_state.auto_mode else None,
+        help="Tell me about a memory, dream, or moment you'd like to capture..."
+    )
+
+    st.text_input(
+        "Date of the memory",
+        st.session_state.date,
+        key="date_text",
+        on_change=update_schema_from_prompt if st.session_state.auto_mode else None,
+    )
+
+    # Manual button if auto-mode is off
+    if not st.session_state.auto_mode:
+        if st.button("✨ Transform into Memory DNA ✨"):
+            update_schema_from_prompt()
+
+with col2:
+    st.markdown('<span class="doodle-icon">🎨</span>', unsafe_allow_html=True)
+    st.markdown("**Memory DNA Output**")
+
+# Use current session schema/date
+schema = st.session_state.schema
+date = st.session_state.date
 
 # Display metadata in col2
 with col2:
     st.json(schema)
-    
-    # Color palette
+
     st.markdown("**Color Palette**")
     st.markdown(f"""
     <div class="palette-container">
@@ -426,8 +451,7 @@ with col2:
         <div class="color-swatch" style="background: {schema['palette'][2]};"></div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Metadata grid
+
     meta_col1, meta_col2 = st.columns(2)
     with meta_col1:
         st.markdown(f"""
@@ -436,14 +460,13 @@ with col2:
             <div class="metadata-value">{schema['emotion']}</div>
         </div>
         """, unsafe_allow_html=True)
-        
         st.markdown(f"""
         <div class="metadata-card">
             <div class="metadata-label">~ nodes ~</div>
             <div class="metadata-value">{schema['nodes']}</div>
         </div>
         """, unsafe_allow_html=True)
-    
+
     with meta_col2:
         st.markdown(f"""
         <div class="metadata-card">
@@ -451,7 +474,6 @@ with col2:
             <div class="metadata-value">{schema['intensity']}</div>
         </div>
         """, unsafe_allow_html=True)
-        
         complexity = "low" if schema['nodes'] < 7 else "medium" if schema['nodes'] < 14 else "high"
         st.markdown(f"""
         <div class="metadata-card">
@@ -459,8 +481,7 @@ with col2:
             <div class="metadata-value">{complexity}</div>
         </div>
         """, unsafe_allow_html=True)
-    
-    # Caption
+
     st.markdown(f"""
     <div class="caption-display">
         "{date} — {schema['caption']}"
@@ -468,168 +489,201 @@ with col2:
     """, unsafe_allow_html=True)
 
 # ──────────────────────────────
-# p5.js visualization
+# Paper.js visualization
 # ──────────────────────────────
 st.markdown("---")
-st.markdown("### 🎨 Your Memory Doodle")
+st.markdown("### 🎨 Your Memory Doodle (Paper.js)")
 
 schema_hash = hashlib.md5(json.dumps(schema, sort_keys=True).encode()).hexdigest()
 schema_js = json.dumps(schema, ensure_ascii=True, separators=(",", ":"))
 
-p5_html = f"""
+paper_html = f"""
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset='utf-8'>
 <meta name='x-schema-hash' content='{schema_hash}'>
 <style>
-html,body {{margin:0;padding:0;background:#1a1a1a;}}
-#wrap {{position:relative;width:900px;margin:0 auto;}}
-#btnsave {{
-  position:absolute;top:12px;right:12px;z-index:10;
-  padding:10px 16px;border:3px solid #4ecdc4;border-radius:12px;
-  background:linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%);
-  color:#1a1a1a;font-family:'Caveat',cursive;font-size:1.2rem;font-weight:700;
-  cursor:pointer;box-shadow:3px 3px 0px #333;transition:all 0.3s ease;
-}}
-#btnsave:hover {{
-  transform:translate(-2px,-2px);box-shadow:5px 5px 0px #333;
-}}
-#caption {{
-  position:absolute;bottom:10px;right:16px;color:rgba(240,240,240,0.9);font-size:18px;
-  font-family:'Kalam',cursive;pointer-events:none;text-shadow:2px 2px 4px rgba(0,0,0,0.8);
-}}
-#summary {{
-  position:absolute;bottom:35px;right:16px;color:rgba(78,205,196,0.9);font-size:14px;
-  font-family:'Kalam',cursive;text-shadow:2px 2px 4px rgba(0,0,0,0.8);
-}}
-canvas {{border-radius:15px;box-shadow:0 10px 40px rgba(0,0,0,0.8);border:3px dashed #333;}}
+  html,body {{ margin:0; padding:0; background:#1a1a1a; }}
+  #wrap {{ position:relative; width:900px; margin:0 auto; }}
+  #btnsave {{
+    position:absolute; top:12px; right:12px; z-index:10;
+    padding:10px 16px; border:3px solid #4ecdc4; border-radius:12px;
+    background:linear-gradient(135deg, #4ecdc4 0%, #45b7d1 100%);
+    color:#1a1a1a; font-family:'Caveat',cursive; font-size:1.2rem; font-weight:700;
+    cursor:pointer; box-shadow:3px 3px 0px #333; transition:all 0.3s ease;
+  }}
+  #btnsave:hover {{ transform:translate(-2px,-2px); box-shadow:5px 5px 0px #333; }}
+  #caption {{
+    position:absolute; bottom:10px; right:16px; color:rgba(240,240,240,0.9); font-size:18px;
+    font-family:'Kalam',cursive; pointer-events:none; text-shadow:2px 2px 4px rgba(0,0,0,0.8);
+  }}
+  #summary {{
+    position:absolute; bottom:35px; right:16px; color:rgba(78,205,196,0.9); font-size:14px;
+    font-family:'Kalam',cursive; text-shadow:2px 2px 4px rgba(0,0,0,0.8);
+  }}
+  canvas {{ border-radius:15px; box-shadow:0 10px 40px rgba(0,0,0,0.8); border:3px dashed #333; }}
 </style>
+
+<!-- Paper.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.15/paper-full.min.js"></script>
+
+<!-- Pass schema to window so PaperScript can read it -->
+<script>window.SCHEMA = {schema_js};</script>
 </head>
 <body>
-<div id='wrap' data-schema-hash='{schema_hash}'>
-  <button id='btnsave' onclick='savePNG()'>💾 Download PNG</button>
-  <div id='p5mount'></div>
-  <div id='caption'>{date} — {schema['caption']}</div>
-  <div id='summary'>{schema['summary']}</div>
-</div>
+  <div id="wrap">
+    <button id="btnsave" onclick="savePNG()">💾 Download PNG</button>
+    <canvas id="paper-canvas" resize width="900" height="900"></canvas>
+    <div id="caption">{date} — {schema['caption']}</div>
+    <div id="summary">{schema['summary']}</div>
+  </div>
 
-<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js'></script>
-<script>
-const SCHEMA = {schema_js};
+  <!-- PaperScript -->
+  <script type="text/paperscript" canvas="paper-canvas">
+    // Read schema from window
+    var schema = window.SCHEMA || {{
+      palette: ['#F79892', '#FFD482', '#C0A5D7'],
+      intensity: 0.8,
+      nodes: 10
+    }};
 
-function hashString(s){{ let h=2166136261>>>0; for(let i=0;i<s.length;i++){{ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }} return h>>>0; }}
-const SEED=hashString((SCHEMA.caption||'')+'|'+(SCHEMA.emotion||'')+'|'+(SCHEMA.nodes||'')+'|'+JSON.stringify(SCHEMA.palette||[]));
-const LAYOUT=(SEED%3),RIPPLE_COUNT=4+(SEED%5),THREAD_OPACITY=80+(SEED%60),BG_ANGLE=(SEED%360)*Math.PI/180,BREATH_BASE=0.015+(SCHEMA.intensity?SCHEMA.intensity*0.025:0.02);
+    // ---- Parameters derived from schema ----
+    var strokeCol  = schema.palette && schema.palette[0] ? schema.palette[0] : '#e4141b';
+    var accentCol  = schema.palette && schema.palette[1] ? schema.palette[1] : '#FFD482';
+    var glowCol    = schema.palette && schema.palette[2] ? schema.palette[2] : '#C0A5D7';
+    var points     = Math.max(3, Math.min(40, (schema.nodes || 10) * 2));
+    var length     = 28 + Math.round( (1 - Math.min(1, Math.max(0, schema.intensity || 0))) * 14 );
+    var strokeW    = 10 + Math.round( (schema.intensity || 0.5) * 12 );
+    var wiggleAmp  = 4 + Math.round( (schema.intensity || 0.5) * 8 );
 
-let centerPos,orbitR,nodes=[];
-new p5((p)=>{{
-  p.setup=function(){{
-    p.randomSeed(SEED); p.noiseSeed(SEED);
-    const c=p.createCanvas(900,900); c.parent(document.getElementById('p5mount'));
-    centerPos=p.createVector(p.width/2,p.height/2);
-    orbitR=Math.min(p.width,p.height)*(0.22+(SEED%8)*0.01);
-    const N=Math.max(3,Math.min(20,SCHEMA.nodes||10));
+    // ---- Background gradient ----
+    var bg = new Path.Rectangle(view.bounds);
+    bg.fillColor = {{
+      gradient: {{
+        stops: [
+          [new Color(0.10, 0.10, 0.10), 0.0],
+          [new Color(0.18, 0.18, 0.18), 1.0]
+        ]
+      }},
+      origin: view.bounds.topLeft,
+      destination: view.bounds.bottomRight
+    }};
 
-    if(LAYOUT===0) {{
-      for(let i=0;i<N;i++) {{
-        const a=p.TWO_PI*i/N-p.PI/2;
-        const rJit=orbitR*(0.9+p.random()*0.2);
-        nodes.push({{x:centerPos.x+rJit*Math.cos(a),y:centerPos.y+rJit*Math.sin(a),phase:p.random(p.TWO_PI)}});
+    // soft corner glow
+    var glow = new Path.Circle(view.bounds.topRight + [-view.bounds.width*0.15, view.bounds.height*0.10], Math.min(view.bounds.width, view.bounds.height)*0.45);
+    glow.fillColor = new Color(glowCol);
+    glow.fillColor.alpha = 0.06;
+
+    // ---- Follow path ----
+    var path = new Path({{ strokeColor: strokeCol, strokeWidth: strokeW, strokeCap: 'round' }});
+    var start = view.center / [10, 1];
+
+    for (var i = 0; i < points; i++) {{
+      path.add(start + new Point(i * length, 0));
+    }}
+
+    // Trails
+    var trailCount = 4;
+    var trails = [];
+    for (var t = 0; t < trailCount; t++) {{
+      var tr = new Path({{ strokeColor: new Color(strokeCol), strokeWidth: Math.max(1, strokeW - (t+1)*2), strokeCap: 'round' }});
+      tr.opacity = 0.12 - t * 0.02;
+      for (var i = 0; i < points; i++) tr.add(path.segments[i].point.clone());
+      trails.push(tr);
+    }}
+
+    function onMouseMove(event) {{
+      path.firstSegment.point = event.point;
+      for (var i = 0; i < points - 1; i++) {{
+        var segment = path.segments[i];
+        var nextSegment = segment.next;
+        var vector = segment.point - nextSegment.point;
+        vector.length = length;
+        nextSegment.point = segment.point - vector;
       }}
-    }} else if(LAYOUT===1) {{
-      const step=orbitR*(1.0/N);
-      for(let i=0;i<N;i++) {{
-        const a=(i*0.9)+(SEED%10)*0.03; const r=step*(i+3);
-        nodes.push({{x:centerPos.x+r*Math.cos(a),y:centerPos.y+r*Math.sin(a),phase:p.random(p.TWO_PI)}});
-      }}
-    }} else {{
-      const clusters=2+(SEED%2);
-      const centers=[];
-      for(let k=0;k<clusters;k++) {{
-        const ang=(k/clusters)*p.TWO_PI+0.6*(SEED%7);
-        const rad=orbitR*0.6;
-        centers.push({{x:centerPos.x+rad*Math.cos(ang),y:centerPos.y+rad*Math.sin(ang)}});
-      }}
-      for(let i=0;i<N;i++) {{
-        const cidx=i%clusters; const cx=centers[cidx].x, cy=centers[cidx].y;
-        const r=50+p.random(80), a=p.random(p.TWO_PI);
-        nodes.push({{x:cx+r*Math.cos(a),y:cy+r*Math.sin(a),phase:p.random(p.TWO_PI)}});
+      path.smooth({{ type: 'continuous' }});
+
+      for (var t = 0; t < trails.length; t++) {{
+        var tr = trails[t];
+        for (var i = 0; i < points; i++) {{
+          var target = path.segments[i].point;
+          var curr   = tr.segments[i].point;
+          tr.segments[i].point = curr + (target - curr) * (0.10 - t*0.015);
+        }}
+        tr.smooth({{ type: 'continuous' }});
       }}
     }}
 
-    document.getElementById('caption').textContent=SCHEMA.caption||'';
-    document.getElementById('summary').textContent=SCHEMA.summary||'';
-  }};
-
-  p.draw=function(){{
-    drawBackground(p,SCHEMA.palette||['#F79892','#FFD482','#C0A5D7']);
-    p.noFill();
-
-    // ripples
-    p.push(); p.translate(centerPos.x,centerPos.y);
-    const t=p.frameCount*0.01;
-    for(let i=0;i<RIPPLE_COUNT;i++) {{
-      const baseIn=orbitR*0.85, baseOut=orbitR*1.65;
-      const r=p.map((t+i*0.25)%1,0,1,baseIn,baseOut);
-      p.stroke(255,215,130,p.map(r,baseIn,baseOut,90,0));
-      p.strokeWeight(1.25); p.circle(0,0,r*2);
-    }}
-    p.pop();
-
-    // threads
-    p.stroke(230,180,90,THREAD_OPACITY); p.strokeWeight(1.3);
-    for(let i=0;i<nodes.length;i++) {{
-      const a=nodes[i]; const b=nodes[(i+1)%nodes.length];
-      p.line(centerPos.x,centerPos.y,a.x,a.y);
-      p.bezier(a.x,a.y,
-               p.lerp(a.x,centerPos.x,0.25), p.lerp(a.y,centerPos.y,0.25),
-               p.lerp(b.x,centerPos.x,0.25), p.lerp(b.y,centerPos.y,0.25),
-               b.x,b.y);
+    function onMouseDown(event) {{
+      path.fullySelected = true;
+      path.strokeColor = accentCol;
+      for (var t = 0; t < trails.length; t++) {{
+        trails[t].strokeColor = accentCol;
+      }}
     }}
 
-    // center glow
-    drawGlow(p,centerPos.x,centerPos.y,Math.min(p.width,p.height)*0.16,p.color(255,195,80,130));
-    p.fill(255,190,70,200); p.noStroke();
-    p.circle(centerPos.x,centerPos.y,Math.min(p.width,p.height)*0.11);
-
-    // nodes
-    for(let i=0;i<nodes.length;i++) {{
-      const n=nodes[i]; const breathe=4*Math.sin(p.frameCount*BREATH_BASE+n.phase);
-      const vx=n.x+breathe*0.8, vy=n.y+breathe*0.8;
-      p.noFill(); p.stroke(130,90,60,70); p.strokeWeight(2); p.circle(vx+2,vy+2,54);
-      p.fill(255,205,120,170); p.stroke(140,90,60,120); p.strokeWeight(1.8); p.circle(vx,vy,44);
+    function onMouseUp(event) {{
+      path.fullySelected = false;
+      path.strokeColor = strokeCol;
+      for (var t = 0; t < trails.length; t++) {{
+        trails[t].strokeColor = strokeCol;
+      }}
     }}
-  }};
-}});
 
-function drawBackground(p,palette){{
-  const c1=p.color(palette[0]), c2=p.color(palette[1]), c3=p.color(palette[2]);
-  for(let y=0;y<p.height;y++){{ const f=y/(p.height-1); const col=p.lerpColor(c1,c2,f); p.stroke(col); p.line(0,y,p.width,y); }}
-  p.noStroke(); for(let r=0;r<600;r++){{ const a=p.map(r,0,600,110,0); p.fill(p.red(c3),p.green(c3),p.blue(c3),a*0.3); p.circle(p.width*0.85,p.height*0.15,r); }}
-}}
+    // Idle breathing
+    var theta = 0;
+    function onFrame(event) {{
+      theta += (schema.intensity || 0.5) * 0.02 + 0.01;
+      var wobble = Math.sin(theta) * wiggleAmp;
 
-function drawGlow(p,x,y,radius,col){{
-  p.noStroke(); for(let r=radius;r>0;r-=6){{ const a=p.map(r,0,radius,220,0); p.fill(p.red(col),p.green(col),p.blue(col),a*0.5); p.circle(x,y,r*2); }}
-}}
+      var base = view.center + new Point( Math.cos(theta*1.3)*wobble, Math.sin(theta)*wobble );
+      path.firstSegment.point = path.firstSegment.point * 0.94 + base * 0.06;
 
-function savePNG(){{
-  const c=document.querySelector('canvas'); if(!c) return;
-  const link=document.createElement('a'); link.download='memory_doodle.png'; link.href=c.toDataURL('image/png'); link.click();
-}}
-</script>
+      for (var i = 0; i < points - 1; i++) {{
+        var segment = path.segments[i];
+        var nextSegment = segment.next;
+        var vector = segment.point - nextSegment.point;
+        vector.length = length;
+        nextSegment.point = segment.point - vector;
+      }}
+      path.smooth({{ type: 'continuous' }});
+
+      for (var t = 0; t < trails.length; t++) {{
+        var tr = trails[t];
+        for (var i = 0; i < points; i++) {{
+          var target = path.segments[i].point;
+          var curr   = tr.segments[i].point;
+          tr.segments[i].point = curr + (target - curr) * (0.04 - t*0.006);
+        }}
+        tr.smooth({{ type: 'continuous' }});
+      }}
+    }}
+  </script>
+
+  <!-- Export as PNG -->
+  <script>
+    function savePNG() {{
+      var canvas = document.getElementById('paper-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = 'memory_doodle.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }}
+  </script>
 </body>
 </html>
 """
 
 # Render canvas
 try:
-    components_html(p5_html, height=980, scrolling=False)
+    components_html(paper_html, height=980, scrolling=False)
 except Exception as e:
-    st.error("⚠️ Failed to render p5.js canvas.")
+    st.error("⚠️ Failed to render Paper.js canvas.")
     st.exception(e)
 
-# Debug expander
+# Debug
 with st.expander("🔧 Debug Info"):
     st.write("**Chosen model:**", chosen_model)
     if available_models:
