@@ -17,6 +17,19 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+else:
+    # You can still run with fallback if no key is set
+    pass
+
+# ---------------------------
+# Gemini model setup
+# ---------------------------
+# Use a valid, current Gemini model name.
+# You can switch between "gemini-1.5-pro" and "gemini-1.5-flash" if you want.
+MODEL_NAME = "gemini-1.5-pro"
+
+# Create the model object only if we have an API key
+model = genai.GenerativeModel(MODEL_NAME) if GEMINI_API_KEY else None
 
 # ---------------------------
 # Utility: LLM call
@@ -28,20 +41,21 @@ def generate_paperscript(prompt: str) -> str:
     The model must return ONLY JavaScript/PaperScript code,
     no markdown, no explanation.
     """
-    if not GEMINI_API_KEY:
-        # Fallback: a tiny static demo if no API key
+    # If no API key, we immediately fall back to the static demo
+    if not GEMINI_API_KEY or model is None:
         return DEFAULT_FALLBACK_PAPERSCRIPT
 
-    model = genai.GenerativeModel("gemini-1.5-pro")  # adjust if needed
+    # Normal case: call Gemini
     response = model.generate_content(
         prompt,
         generation_config={"temperature": 0.9}
     )
+
     # Depending on SDK version, .text or .candidates[0].content.parts...
     try:
         return response.text
     except AttributeError:
-        # Very rough fallback
+        # Very rough fallback if the SDK structure changes
         return str(response)
 
 # ---------------------------
