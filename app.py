@@ -18,18 +18,16 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
-    # You can still run with fallback if no key is set
-    pass
+    pass  # fallback later
 
 # ---------------------------
 # Gemini model setup
 # ---------------------------
-# Use a valid, current Gemini model name.
-# You can switch between "gemini-1.5-pro" and "gemini-1.5-flash" if you want.
-MODEL_NAME = "gemini-1.5-pro"
+MODEL_NAME = "gemini-1.5-flash"   # ✅ fixed model name (no “models/”, no “pro”)
 
 # Create the model object only if we have an API key
 model = genai.GenerativeModel(MODEL_NAME) if GEMINI_API_KEY else None
+
 
 # ---------------------------
 # Utility: LLM call
@@ -41,32 +39,24 @@ def generate_paperscript(prompt: str) -> str:
     The model must return ONLY JavaScript/PaperScript code,
     no markdown, no explanation.
     """
-    # If no API key, we immediately fall back to the static demo
     if not GEMINI_API_KEY or model is None:
         return DEFAULT_FALLBACK_PAPERSCRIPT
 
-    # Normal case: call Gemini
-    response = model.generate_content(
-        prompt,
-        generation_config={"temperature": 0.9}
-    )
-
-    # Depending on SDK version, .text or .candidates[0].content.parts...
     try:
-        return response.text
-    except AttributeError:
-        # Very rough fallback if the SDK structure changes
-        return str(response)
+        response = model.generate_content(
+            prompt,
+            generation_config={"temperature": 0.9}
+        )
+        return getattr(response, "text", str(response))
+    except Exception as e:
+        st.error(f"⚠️ Gemini error: {e}")
+        return DEFAULT_FALLBACK_PAPERSCRIPT
+
 
 # ---------------------------
 # Paper.js HTML wrapper
 # ---------------------------
 def build_paper_html(paperscript_code: str, canvas_id: str = "dreamCanvas") -> str:
-    """
-    Wrap generated PaperScript into a minimal HTML page
-    that Streamlit can render via components.html.
-    """
-    # IMPORTANT: no backticks or <script> nesting issues.
     html = f"""
 <!DOCTYPE html>
 <html>
@@ -101,14 +91,11 @@ def build_paper_html(paperscript_code: str, canvas_id: str = "dreamCanvas") -> s
     """
     return html
 
+
 # ---------------------------
 # Helpers: build prompts
 # ---------------------------
 def build_journal_prompt(user_text: str, context_type: str) -> str:
-    """
-    Create an instruction prompt for Gemini that describes
-    how to turn free-text into a context-specific dream/memory doodle.
-    """
     return f"""
 You are a creative code generator that ONLY outputs PaperScript code
 for the Paper.js library (no HTML, no markdown, no explanations).
@@ -151,10 +138,8 @@ Output:
 - ONLY valid PaperScript code.
     """
 
+
 def summarize_dataframe(df: pd.DataFrame, max_rows: int = 5) -> str:
-    """
-    Turn a DataFrame into a text summary for the model.
-    """
     buf = io.StringIO()
     buf.write("Columns:\n")
     buf.write(", ".join([f"{col} ({str(df[col].dtype)})" for col in df.columns]))
@@ -163,6 +148,7 @@ def summarize_dataframe(df: pd.DataFrame, max_rows: int = 5) -> str:
     buf.write("\n\nBasic stats (where numeric):\n")
     buf.write(df.describe(include="all", datetime_is_numeric=True).to_csv())
     return buf.getvalue()
+
 
 def build_table_prompt(df: pd.DataFrame) -> str:
     summary = summarize_dataframe(df)
@@ -208,21 +194,17 @@ Output:
 - ONLY valid PaperScript code.
     """
 
+
 # ---------------------------
 # Fallback PaperScript (no API)
 # ---------------------------
 DEFAULT_FALLBACK_PAPERSCRIPT = """
 // Fallback PaperScript demo (no API key found)
-// Simple hand-drawn circle in a night sky.
-
 var W = 900, H = 600;
 view.viewSize = new Size(W, H);
-
 var bg = new Path.Rectangle(view.bounds);
 bg.fillColor = '#050b1a';
-
 function j(a){ return (Math.random()-0.5)*a; }
-
 function handCircle(center, radius, strokeCol, fillCol){
     var s = 40;
     var p = new Path();
@@ -237,12 +219,10 @@ function handCircle(center, radius, strokeCol, fillCol){
     if (fillCol) p.fillColor = fillCol;
     return p;
 }
-
 var center = new Point(W/2, H/2);
 var moon = handCircle(center, 80,
                       new Color(1,1,1,0.9),
                       new Color(0.98,0.98,0.94, 0.95));
-
 var title = new PointText({
     point: new Point(40, 40),
     content: "Fallback Visual · Add GEMINI_API_KEY to get custom doodles",
@@ -251,7 +231,6 @@ var title = new PointText({
     fontFamily: 'Helvetica',
     fontSize: 16
 });
-
 var t = 0;
 function onFrame(event){
     t += event.delta;
@@ -264,7 +243,6 @@ function onFrame(event){
 # Streamlit UI
 # ---------------------------
 st.set_page_config(page_title="Virtual Journal · Data Humanism", layout="wide")
-
 st.title("📝 Virtual Journal · Data Humanism Visualiser")
 st.caption("Write a dream or upload data — see a hand-drawn, living visual in Paper.js")
 
@@ -276,7 +254,6 @@ mode = st.sidebar.radio(
 if not GEMINI_API_KEY:
     st.sidebar.warning("No GEMINI_API_KEY found – using fallback static demo.")
 
-# Shared container for visualization
 vis_container = st.empty()
 
 if mode == "Journal / Dream Text":
@@ -309,13 +286,9 @@ if mode == "Journal / Dream Text":
 
 else:
     st.subheader("Spreadsheet / Tabular Data Input")
-    uploaded = st.file_uploader(
-        "Upload a CSV or Excel file",
-        type=["csv", "xlsx", "xls"]
-    )
+    uploaded = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx", "xls"])
 
     if uploaded is not None:
-        # Try to read into DataFrame
         try:
             if uploaded.name.lower().endswith(".csv"):
                 df = pd.read_csv(uploaded)
@@ -343,11 +316,9 @@ else:
     else:
         st.info("Upload a CSV or Excel file to begin.")
 
-st.markdown(
-    """
+st.markdown("""
 ---
 
 _This version is ephemeral: nothing is stored.  
 Each visual is a momentary mirror of your text or data._
-"""
-)
+""")
